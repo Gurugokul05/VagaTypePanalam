@@ -106,7 +106,6 @@ export default function TopHeader() {
         <div className="header-left">
           <Link href="/" className="header-logo">
             <HeaderLogo />
-            <span className="logo-text">வாங்க டைப் பண்ணலாம்</span>
           </Link>
         </div>
 

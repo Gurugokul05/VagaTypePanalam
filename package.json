@@ -27,7 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.2",
     "lucide-react": "^1.47.0",
-    "next": "16.3.5",
+    "next": "16.4.0",
     "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.0",
     "react": "19.3.0",
@@ -44,9 +44,13 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^10.11.0",
-    "eslint-config-next": "16.3.5",
+    "eslint-config-next": "16.4.0",
     "prisma": "^7.10.0",
     "react-email": "^6.9.5",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "mysql2": "^3.24.5",
+    "next": "$next"
   }
 }
