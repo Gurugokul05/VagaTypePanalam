@@ -578,7 +578,7 @@
 .header-logo-svg {
   display: flex;
   align-items: center;
-  height: 48px;
+  height: 38px;
   width: auto;
   flex-shrink: 0;
 }
