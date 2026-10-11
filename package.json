@@ -51,6 +51,8 @@
   },
   "overrides": {
     "mysql2": "^3.24.5",
-    "next": "$next"
+    "next": "$next",
+    "braces": "^3.0.3",
+    "deepmerge-ts": "^8.0.2"
   }
 }
