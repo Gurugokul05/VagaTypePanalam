@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { RotateCcw, Share2, Sparkles, BookOpen, Check } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import type { Session } from '@/db/schema';
 import { calculateKogasa } from '@/engine/statsCalculator';
@@ -214,15 +216,26 @@ export function TestResults({ result, selectedDuration, onRestart }: TestResults
 
       <div className="dashboard-actions">
         <button className="dashboard-btn restart-btn" onClick={onRestart} id="test-restart-btn">
-          Try Again <span className="shortcut-hint">↵</span>
+          <RotateCcw size={16} />
+          <span>Retake Test</span>
+          <span className="shortcut-hint">↵ Enter</span>
         </button>
+
         <button
-          className="dashboard-btn share-btn"
+          className={`dashboard-btn share-btn ${copied ? 'copied' : ''}`}
           onClick={handleCopy}
           id="copy-score-btn"
         >
-          {copied ? 'Copied!' : 'Copy Scorecard'}
+          {copied ? <Check size={16} /> : <Share2 size={16} />}
+          <span>{copied ? 'Copied to Clipboard!' : 'Share Scorecard'}</span>
         </button>
+
+        {weakKeys.length > 0 && (
+          <Link href="/" className="dashboard-btn practice-weak-btn">
+            <Sparkles size={16} />
+            <span>Practice Weak Keys ({weakKeys.map(k => k.char).slice(0, 3).join(', ')})</span>
+          </Link>
+        )}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import TypingArea from '@/components/typing/TypingArea';
 import { useUIStore } from '@/store/uiStore';
 import { useTypingStore } from '@/store/typingStore';
-import { Swords, Car, Flag, Trophy, Medal, ChevronUp } from 'lucide-react';
+import { Flag, Trophy, RotateCcw, ArrowRight, Timer, Gauge } from 'lucide-react';
 import type { Session } from '@/db/schema';
 import { getProfile } from '@/db/profile';
 
@@ -136,7 +136,7 @@ export default function RacePage() {
   const [raceKey, setRaceKey] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setIsStarted] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [result, setResult] = useState<Session | null>(null);
   const [playerWpm, setPlayerWpm] = useState(0);
@@ -179,7 +179,7 @@ export default function RacePage() {
 
   useEffect(() => {
     if (snapshot.state === 'typing' && !hasStarted) {
-      setHasStarted(true);
+      setIsStarted(true);
       setShowSetup(false);
     }
   }, [snapshot.state, hasStarted]);
@@ -216,7 +216,7 @@ export default function RacePage() {
   const playerPosition = placements.findIndex(p => p.id === 'player') + 1;
 
   const startNewRace = () => {
-    setHasStarted(false);
+    setIsStarted(false);
     setIsFinished(false);
     setResult(null);
     setPlayerWpm(0);
@@ -251,104 +251,145 @@ export default function RacePage() {
   const diffUp = () => !raceLocked && setDifficultyIndex(i => Math.min(i + 1, DIFFICULTIES.length - 1));
   const diffDown = () => !raceLocked && setDifficultyIndex(i => Math.max(i - 1, 0));
 
-  const medalColor = playerPosition === 1 ? '#facc15' : playerPosition === 2 ? '#cbd5e1' : playerPosition === 3 ? '#d97706' : 'var(--text-muted)';
+  const positionColor =
+    playerPosition === 1
+      ? 'var(--color-success, #34d399)'
+      : playerPosition === 2
+        ? 'var(--text-secondary, #94a3b8)'
+        : playerPosition === 3
+          ? 'var(--color-accent-light, #eec224)'
+          : 'var(--text-muted, #6b6d70)';
+
   function ordinal(n: number) {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
-}
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+  }
+
+  const bots = [
+    { name: 'Rookie', wpm: bot1Wpm, pct: bot1Pct, chars: bot1Chars, color: '#22d3ee' },
+    { name: 'Racer', wpm: bot2Wpm, pct: bot2Pct, chars: bot2Chars, color: '#f59e0b' },
+    { name: 'Champion', wpm: bot3Wpm, pct: bot3Pct, chars: bot3Chars, color: '#ef4444' },
+  ];
+
   return (
     <main className="race-page">
-      <div className="container" key={raceKey}>
+      <div className="race-wrap" key={raceKey}>
+        {/* ── Top bar: title / difficulty / level ── */}
+        <header className="race-topbar">
+          <div className="topbar-title">
+            <span className="topbar-eyebrow">Race Mode</span>
+            <h1 className="topbar-h1">Type Racing</h1>
+          </div>
 
-        {/* Difficulty selector + Profile level */}
-        <div className="race-controls">
-          <div className="difficulty-selector">
-            <button className="ctrl-arrow" onClick={diffDown} disabled={difficultyIndex <= 0 || raceLocked} aria-label="Lower difficulty">
-              <ChevronUp size={16} style={{ transform: 'rotate(-90deg)' }} />
-            </button>
-            <div className="difficulty-display" style={{ borderColor: difficulty.color }}>
-              <span className="diff-label" style={{ color: difficulty.color }}>{difficulty.label}</span>
-              <span className="diff-speed">{difficulty.speedLabel}</span>
+          <div className="topbar-side">
+            <div className="level-chip" title="Player level">
+              <Trophy size={13} />
+              <span>Lv. {profileLevel}</span>
             </div>
-            <button className="ctrl-arrow" onClick={diffUp} disabled={difficultyIndex >= DIFFICULTIES.length - 1 || raceLocked} aria-label="Higher difficulty">
-              <ChevronUp size={16} style={{ transform: 'rotate(90deg)' }} />
-            </button>
           </div>
-          <div className="level-display">
-            <Trophy size={14} />
-            <span>Lv.{profileLevel}</span>
-          </div>
+        </header>
+
+        <div className="diff-bar" role="group" aria-label="Difficulty">
+          <span className="diff-caption">Difficulty</span>
+          {DIFFICULTIES.map((d, idx) => {
+            const active = difficultyIndex === idx;
+            return (
+              <button
+                key={d.label}
+                className={`diff-chip ${active ? 'active' : ''}`}
+                onClick={() => {
+                  if (!raceLocked) setDifficultyIndex(idx);
+                }}
+                disabled={raceLocked}
+                aria-pressed={active}
+                style={{ '--diff-color': d.color } as React.CSSProperties}
+              >
+                <span className="chip-dot" style={{ background: d.color }} />
+                <span className="chip-name">{d.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Live position indicator — reserves its own row so it never overlaps the track board */}
-        <div className="live-position-slot">
-          {hasStarted && !isFinished && (
-            <div className="live-position animate-fade-in">
-              <Medal size={14} style={{ color: medalColor }} />
-              <span>You're in <strong style={{ color: medalColor }}>{ordinal(playerPosition)}</strong> place</span>
-            </div>
-          )}
-        </div>
+        {/* ── Live standing ── */}
+        {hasStarted && !isFinished && (
+          <div className="standing" style={{ '--pos-color': positionColor } as React.CSSProperties}>
+            <span className="standing-pos">{ordinal(playerPosition)}</span>
+            <span className="standing-label">place</span>
+            <span className="standing-sep" />
+            <span className="standing-wpm">{playerWpm.toFixed(0)} wpm</span>
+          </div>
+        )}
 
-        {/* Tracks */}
-        <div className="race-track-board">
-          <div className="lane player-lane">
-            <div className="lane-info">
-              <span className="name">You</span>
-              <span className="speed">{hasStarted ? playerWpm.toFixed(0) : '—'} <em>wpm</em></span>
+        {/* ── Race track ── */}
+        <div className="track-board">
+          <div className="track-scale">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+
+          {/* Player lane */}
+          <div className="lane lane-player">
+            <div className="lane-side">
+              <span className="lane-name">You</span>
+              <span className="lane-wpm">{hasStarted ? playerWpm.toFixed(0) : '—'}</span>
             </div>
-            <div className="track">
-              <div className="track-lane-dashes" />
-              <div className="finish-line" aria-hidden="true" />
-              <div className="car-wrapper" style={{ left: `${playerPct}%` }}>
-                <div className="car player-car"><Car size={20}/></div>
-              </div>
+            <div className="lane-track">
+              <span className="lane-fill" style={{ width: `${playerPct}%` }} />
             </div>
           </div>
 
-          {[
-            { pct: bot1Pct, name: 'Rookie', wpm: bot1Wpm, cls: 'bot-car' },
-            { pct: bot2Pct, name: 'Racer', wpm: bot2Wpm, cls: 'bot-fast-car' },
-            { pct: bot3Pct, name: 'Champion', wpm: bot3Wpm, cls: 'bot-pro-car' },
-          ].map((bot, i) => (
-            <div className="lane" key={i}>
-              <div className="lane-info">
-                <span className="name">{bot.name}</span>
-                <span className="speed">{bot.wpm.toFixed(0)} <em>wpm</em></span>
-              </div>
-              <div className="track">
-                <div className="track-lane-dashes" />
-                <div className="finish-line" aria-hidden="true" />
-                <div className="car-wrapper" style={{ left: `${bot.pct}%` }}>
-                  <div className={`car ${bot.cls}`}><Car size={20}/></div>
+          {/* Bot lanes */}
+          {bots.map((bot, i) => {
+            const botPos = [
+              { pct: playerPct, id: 'player' },
+              { pct: bot1Pct, id: 'b1' },
+              { pct: bot2Pct, id: 'b2' },
+              { pct: bot3Pct, id: 'b3' },
+            ]
+              .sort((a, b) => b.pct - a.pct)
+              .findIndex(item => item.id === (i === 0 ? 'b1' : i === 1 ? 'b2' : 'b3')) + 1;
+
+            return (
+              <div className="lane" key={i}>
+                <div className="lane-side">
+                  <span className="lane-name">{bot.name}</span>
+                  <span className="lane-wpm">
+                    {bot.wpm.toFixed(0)} <em>wpm</em> · {ordinal(botPos)}
+                  </span>
+                </div>
+                <div className="lane-track">
+                  <span className="lane-fill" style={{ width: `${bot.pct}%`, background: bot.color }} />
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Race area — TypingArea always mounted underneath; overlays sit on a fully opaque scrim so nothing bleeds through */}
+        {/* ── Race area: TypingArea + overlays ── */}
         <div className="race-typing-area" ref={containerRef}>
           {showSetup && !hasStarted && countdown === null && (
-            <div className="race-overlay animate-fade-in">
+            <div className="race-overlay">
               <div className="setup-card">
-                <div className="setup-icon"><Swords size={28} /></div>
-                <h2>{difficulty.label} Race</h2>
-                <p>Race against 3 bots. Fastest typist wins.</p>
-                <div className="bot-preview">
-                  {[
-                    { wpm: bot1Wpm, name: 'Rookie' },
-                    { wpm: bot2Wpm, name: 'Racer' },
-                    { wpm: bot3Wpm, name: 'Champion' },
-                  ].map((b, i) => (
-                    <span key={i} className="bot-pill" style={{ borderColor: difficulty.color }}>
-                      {b.name} <em>~{b.wpm.toFixed(0)} wpm</em>
-                    </span>
+                <span className="setup-eyebrow">{difficulty.label} Grand Prix</span>
+                <h2>Ready to race?</h2>
+                <p>Race three calibrated ghost typists over {totalChars} characters.</p>
+
+                <div className="bot-roster">
+                  {bots.map((b, i) => (
+                    <div key={i} className="roster-item">
+                      <span className="roster-dot" style={{ background: b.color }} />
+                      <span className="roster-name">{b.name}</span>
+                      <span className="roster-wpm">~{b.wpm.toFixed(0)}</span>
+                    </div>
                   ))}
                 </div>
-                <button className="btn btn-primary btn-lg" onClick={handleStartRace}>
-                  Start Race
+
+                <button className="btn btn-primary race-start-btn" onClick={handleStartRace}>
+                  Start race
+                  <ArrowRight size={16} />
                 </button>
               </div>
             </div>
@@ -356,35 +397,72 @@ export default function RacePage() {
 
           {countdown !== null && (
             <div className="race-overlay" aria-live="assertive">
-              <div className="start-lights">
-                {[0, 1, 2].map(i => (
-                  <span
-                    key={i}
-                    className={`light ${countdown > 0 && (3 - countdown) > i ? 'lit' : ''} ${countdown === 0 ? 'go' : ''}`}
-                  />
-                ))}
+              <div className="countdown-card">
+                <span className="countdown-cap">Get set</span>
+                <span className={`countdown-num ${countdown === 0 ? 'go' : ''}`} key={countdown}>
+                  {countdown === 0 ? 'GO' : countdown}
+                </span>
+                <div className="countdown-lights">
+                  {[0, 1, 2].map(i => (
+                    <span
+                      key={i}
+                      className={`light ${countdown > 0 && 3 - countdown > i ? 'lit' : ''} ${countdown === 0 ? 'go' : ''}`}
+                    />
+                  ))}
+                </div>
               </div>
-              {countdown === 0 && <div className="go-label">GO</div>}
             </div>
           )}
 
           {isFinished && (
-            <div className="race-overlay animate-fade-in">
-              <div className="results-card">
-                <div className={`result-badge ${playerPosition === 1 ? 'win' : 'lose'}`}>
-                  <Medal size={16} style={{ color: medalColor }} />
-                  {ordinal(playerPosition)} Place
+            <div className="race-overlay">
+              <div className="result-card">
+                <span className="result-eyebrow" style={{ color: positionColor }}>
+                  {playerPosition === 1 ? 'Race won' : 'Race finished'}
+                </span>
+                <span className="result-position" style={{ color: positionColor }}>
+                  {ordinal(playerPosition)}
+                  <small>place</small>
+                </span>
+
+                <div className="result-row">
+                  <div className="result-metric">
+                    <Gauge size={15} />
+                    <span className="metric-value">{result?.wpm.toFixed(0)}</span>
+                    <span className="metric-label">wpm</span>
+                  </div>
+                  <div className="result-metric">
+                    <Timer size={15} />
+                    <span className="metric-value">
+                      {result?.accuracy ? `${(result.accuracy * 100).toFixed(0)}%` : '100%'}
+                    </span>
+                    <span className="metric-label">accuracy</span>
+                  </div>
+                  <div className="result-metric">
+                    <Trophy size={15} />
+                    <span className="metric-value accent">+{playerPosition === 1 ? '100' : '40'}</span>
+                    <span className="metric-label">xp</span>
+                  </div>
                 </div>
-                <div className="score">
-                  <span className="val">{result?.wpm.toFixed(0)}</span>
-                  <span className="unit">wpm</span>
+
+                <div className="result-actions">
+                  <button className="btn btn-primary" onClick={startNewRace}>
+                    <RotateCcw size={15} />
+                    Race again
+                  </button>
+                  {difficultyIndex < DIFFICULTIES.length - 1 && playerPosition === 1 && (
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        diffUp();
+                        startNewRace();
+                      }}
+                    >
+                      {DIFFICULTIES[difficultyIndex + 1].label}
+                      <ArrowRight size={15} />
+                    </button>
+                  )}
                 </div>
-                <div className="score-detail">
-                  {result?.accuracy ? `${(result.accuracy * 100).toFixed(0)}% accuracy` : ''}
-                </div>
-                <button className="btn btn-primary btn-lg" onClick={startNewRace}>
-                  Race Again
-                </button>
               </div>
             </div>
           )}
@@ -397,220 +475,258 @@ export default function RacePage() {
             onComplete={handleComplete}
           />
         </div>
-
       </div>
 
       <style jsx>{`
         .race-page {
-          min-height: 100dvh;
-          padding: var(--space-2xl) 0;
+          min-height: calc(100dvh - var(--header-height, 64px) - 60px);
+          padding: 1.25rem 0 3.5rem;
         }
-        .container {
-          max-width: 800px;
+
+        .race-wrap {
+          max-width: 860px;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
-          gap: var(--space-md);
+          gap: 1rem;
+          padding: 0 1rem;
         }
 
-        /* --- Controls --- */
-        .race-controls {
+        /* ── Top bar ── */
+        .race-topbar {
           display: flex;
           align-items: center;
-          justify-content: center;
-          gap: var(--space-lg);
-          flex-wrap: wrap;
+          justify-content: space-between;
+          gap: 1rem;
         }
-        .difficulty-selector {
+
+        .topbar-title {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .topbar-eyebrow {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--color-primary-light, #818cf8);
+        }
+
+        .topbar-h1 {
+          font-size: clamp(1.4rem, 2.6vw, 1.9rem);
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          margin: 0;
+          color: var(--text-primary, #f1f5f9);
+        }
+
+        .level-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 12px;
+          border-radius: 9999px;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--color-accent-light, #eec224);
+          background: rgba(238, 194, 36, 0.1);
+          border: 1px solid rgba(238, 194, 36, 0.22);
+        }
+
+        /* ── Difficulty chips ── */
+        .diff-bar {
           display: flex;
           align-items: center;
-          gap: var(--space-sm);
+          gap: 2px;
+          padding: 4px;
+          border-radius: 9999px;
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+          overflow-x: auto;
+          scrollbar-width: none;
         }
-        .ctrl-arrow {
-          background: var(--bg-surface);
-          border: 1px solid var(--border-default);
-          border-radius: var(--radius-md);
-          color: var(--text-secondary);
+
+        .diff-bar::-webkit-scrollbar {
+          display: none;
+        }
+
+        .diff-caption {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--text-muted, #6b6d70);
+          padding: 0 8px 0 10px;
+          white-space: nowrap;
+        }
+
+        .diff-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 0.35rem 0.75rem;
+          border: none;
+          border-radius: 9999px;
+          background: transparent;
+          color: var(--text-secondary, #9a9c9f);
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 600;
           cursor: pointer;
-          padding: 6px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: background 0.15s, color 0.15s, opacity 0.15s;
+          white-space: nowrap;
+          transition: background 0.18s ease, color 0.18s ease;
         }
-        .ctrl-arrow:hover:not(:disabled) {
-          background: var(--bg-hover);
-          color: var(--text-primary);
+
+        .diff-chip:hover:not(:disabled) {
+          background: var(--bg-overlay, rgba(255, 255, 255, 0.05));
+          color: var(--text-primary, #fff);
         }
-        .ctrl-arrow:disabled {
-          opacity: 0.3;
+
+        .diff-chip.active {
+          background: var(--bg-overlay, rgba(255, 255, 255, 0.05));
+          color: var(--text-primary, #fff);
+        }
+
+        .diff-chip:disabled {
+          opacity: 0.45;
           cursor: not-allowed;
         }
-        .difficulty-display {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 6px 22px;
-          border: 2px solid;
-          border-radius: var(--radius-lg);
-          background: var(--bg-surface);
-          min-width: 148px;
-        }
-        .diff-label {
-          font-weight: 700;
-          font-size: var(--text-sm);
-          letter-spacing: 0.02em;
-        }
-        .diff-speed {
-          font-family: var(--font-mono);
-          font-size: 11px;
-          color: var(--text-muted);
-          font-variant-numeric: tabular-nums;
-        }
-        .level-display {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: var(--text-sm);
-          font-weight: 600;
-          color: var(--color-accent);
-          background: var(--bg-surface);
-          border: 1px solid var(--border-default);
-          border-radius: var(--radius-md);
-          padding: 6px 12px;
+
+        .chip-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          flex-shrink: 0;
         }
 
-        /* --- Live position: fixed-height slot so its appearance never shifts layout below it --- */
-        .live-position-slot {
-          min-height: 30px;
-          display: flex;
-          justify-content: center;
+        .diff-chip.active .chip-dot {
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--diff-color) 25%, transparent);
         }
-        .live-position {
+
+        /* ── Standing pill ── */
+        .standing {
           display: flex;
           align-items: center;
-          gap: 6px;
-          font-size: var(--text-sm);
-          color: var(--text-secondary);
-          background: var(--bg-surface);
-          border: 1px solid var(--border-default);
-          border-radius: var(--radius-full);
+          gap: 8px;
+          align-self: center;
           padding: 5px 14px;
-          width: fit-content;
+          border-radius: 9999px;
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+          font-size: 13px;
+          color: var(--text-secondary, #9a9c9f);
         }
 
-        /* --- Track board --- */
-        .race-track-board {
-          background: var(--bg-surface);
-          border: 1px solid var(--border-default);
-          border-radius: var(--radius-lg);
-          padding: var(--space-lg) var(--space-lg) var(--space-lg) var(--space-md);
+        .standing-pos {
+          font-weight: 800;
+          font-family: var(--font-mono, monospace);
+          font-size: 15px;
+          color: var(--pos-color);
+        }
+
+        .standing-label {
+          font-weight: 600;
+        }
+
+        .standing-sep {
+          width: 1px;
+          height: 14px;
+          background: var(--border-subtle, rgba(255, 255, 255, 0.08));
+        }
+
+        .standing-wpm {
+          font-family: var(--font-mono, monospace);
+          font-variant-numeric: tabular-nums;
+          color: var(--text-primary, #fff);
+        }
+
+        /* ── Track board ── */
+        .track-board {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 8px;
+          padding: 1rem 1.15rem;
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+          border-radius: var(--radius-lg, 0.75rem);
+        }
+
+        .track-scale {
+          display: flex;
+          justify-content: space-between;
+          font-family: var(--font-mono, monospace);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          color: var(--text-muted, #6b6d70);
+          opacity: 0.7;
         }
 
         .lane {
           display: grid;
-          grid-template-columns: 92px 1fr;
+          grid-template-columns: 96px 1fr;
           align-items: center;
-          gap: var(--space-md);
+          gap: 0.75rem;
+          padding: 3px 0;
         }
-        .player-lane {
-          background: var(--color-primary-glow);
-          margin: -8px -8px 0 -8px;
-          padding: 8px;
-          border-radius: var(--radius-md);
+
+        .lane-player .lane-name {
+          color: var(--color-primary-light, #818cf8);
         }
-        .lane-info {
+
+        .lane-side {
           display: flex;
           flex-direction: column;
           min-width: 0;
         }
-        .name {
+
+        .lane-name {
+          font-size: 13px;
           font-weight: 700;
-          font-size: var(--text-sm);
-          color: var(--text-primary);
+          color: var(--text-primary, #fff);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
-        .speed {
-          font-family: var(--font-mono);
-          font-size: var(--text-xs);
-          color: var(--text-muted);
+
+        .lane-wpm {
+          font-family: var(--font-mono, monospace);
+          font-size: 10px;
+          color: var(--text-muted, #6b6d70);
           font-variant-numeric: tabular-nums;
         }
-        .speed em {
+
+        .lane-wpm em {
           font-style: normal;
-          opacity: 0.65;
-          margin-left: 2px;
+          opacity: 0.6;
         }
 
-        /* Track: fixed side padding equal to half the car's footprint (16px) on each end,
-           so the car (centered on its % position via transform) can never render outside
-           the rounded track or collide with the finish marker. */
-        .track {
+        .lane-track {
           position: relative;
-          height: 34px;
-          background: var(--bg-overlay);
-          border: 1px solid var(--border-subtle);
-          border-radius: var(--radius-full);
-          padding: 0 16px;
-        }
-        .track-lane-dashes {
-          position: absolute;
-          left: 16px;
-          right: 28px;
-          top: 50%;
-          height: 0;
-          border-top: 1px dashed var(--border-subtle);
-          transform: translateY(-50%);
-          pointer-events: none;
-        }
-        .finish-line {
-          position: absolute;
-          top: 3px;
-          bottom: 3px;
-          right: 10px;
-          width: 4px;
-          border-radius: 2px;
-          background: repeating-linear-gradient(
-            45deg,
-            var(--text-muted) 0 3px,
-            transparent 3px 6px
-          );
-          opacity: 0.5;
+          height: 8px;
+          border-radius: 9999px;
+          background: var(--bg-overlay, rgba(255, 255, 255, 0.06));
+          overflow: hidden;
         }
 
-        .car-wrapper {
+        .lane-fill {
           position: absolute;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          transition: left 0.12s linear;
-          z-index: 2;
+          inset: 0 auto 0 0;
+          border-radius: 9999px;
+          background: var(--color-primary, #6366f1);
+          transition: width 0.14s linear;
         }
-        .car {
-          display: flex;
-          background: var(--bg-surface);
-          border-radius: 50%;
-          padding: 3px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-          color: var(--text-secondary);
-        }
-        .player-car {
-          color: var(--color-primary);
-          border: 2px solid var(--color-primary);
-          box-shadow: 0 0 0 4px var(--color-primary-glow), 0 2px 8px rgba(0,0,0,0.2);
-        }
-        .bot-car { color: var(--color-accent); }
-        .bot-fast-car { color: var(--color-warning); }
-        .bot-pro-car { color: var(--color-error); }
 
-        /* --- Race area / overlays --- */
+        /* ── Race area / overlays ── */
         .race-typing-area {
           position: relative;
-          min-height: 200px;
+          min-height: 220px;
+        }
+
+        .race-typing-area :global(.inline-metrics) {
+          display: none !important;
         }
 
         .race-overlay {
@@ -618,125 +734,282 @@ export default function RacePage() {
           inset: 0;
           z-index: 10;
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: var(--space-sm);
-          background: var(--bg-surface);
-          border: 1px solid var(--border-default);
-          border-radius: var(--radius-lg);
+          padding: 1rem;
+          border-radius: var(--radius-xl, 1rem);
+          background: rgba(10, 11, 14, 0.92);
+          backdrop-filter: blur(6px);
         }
 
-        /* Signature moment: F1-style start lights instead of a plain countdown number */
-        .start-lights {
-          display: flex;
-          gap: 14px;
-        }
-        .light {
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          background: var(--bg-overlay);
-          border: 2px solid var(--border-default);
-          transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
-        }
-        .light.lit {
-          background: var(--color-error);
-          border-color: var(--color-error);
-          box-shadow: 0 0 14px rgba(239, 68, 68, 0.6);
-        }
-        .light.go {
-          background: var(--color-success);
-          border-color: var(--color-success);
-          box-shadow: 0 0 16px rgba(52, 211, 153, 0.65);
-        }
-        .go-label {
-          font-size: var(--text-lg);
-          font-weight: 800;
-          letter-spacing: 0.1em;
-          color: var(--color-success);
-        }
-
-        .setup-card, .results-card {
-          text-align: center;
-          padding: var(--space-xl) var(--space-2xl);
+        /* Setup */
+        .setup-card {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: var(--space-sm);
-          max-width: 340px;
+          gap: 10px;
+          text-align: center;
+          max-width: 360px;
         }
-        .setup-icon { color: var(--color-primary); }
+
+        .setup-eyebrow {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--color-primary-light, #818cf8);
+        }
+
         .setup-card h2 {
-          font-size: var(--text-xl);
-          font-weight: 800;
           margin: 0;
-          color: var(--text-primary);
+          font-size: 1.6rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          color: var(--text-primary, #fff);
         }
+
         .setup-card p {
-          margin: 0 0 var(--space-xs);
-          color: var(--text-secondary);
-          font-size: var(--text-sm);
+          margin: 0;
+          font-size: var(--text-sm, 0.875rem);
+          color: var(--text-secondary, #9a9c9f);
+          line-height: 1.5;
         }
-        .bot-preview {
+
+        .bot-roster {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
           justify-content: center;
+          margin: 6px 0 4px;
         }
-        .bot-pill {
-          font-family: var(--font-mono);
-          font-size: 11px;
-          padding: 4px 10px;
-          border: 1px solid;
-          border-radius: var(--radius-full);
-          color: var(--text-secondary);
-          background: var(--bg-overlay);
-          white-space: nowrap;
-        }
-        .bot-pill em { font-style: normal; opacity: 0.7; }
 
-        .result-badge {
+        .roster-item {
           display: flex;
           align-items: center;
           gap: 6px;
-          font-size: var(--text-md);
-          font-weight: 800;
-          padding: 4px 16px;
-          border-radius: var(--radius-full);
+          padding: 4px 11px;
+          border-radius: 9999px;
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+          font-family: var(--font-mono, monospace);
+          font-size: 11px;
         }
-        .result-badge.win {
-          background: rgba(52, 211, 153, 0.15);
-          color: var(--color-success);
+
+        .roster-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
         }
-        .result-badge.lose {
-          background: rgba(248, 113, 113, 0.15);
-          color: var(--color-error);
+
+        .roster-name {
+          font-weight: 700;
+          color: var(--text-primary, #fff);
         }
-        .score {
+
+        .roster-wpm {
+          color: var(--text-muted, #6b6d70);
+        }
+
+        .race-start-btn {
+          margin-top: 4px;
+          padding: 11px 26px;
+          font-size: 0.95rem;
+          font-weight: 700;
+          border-radius: 9999px;
+        }
+
+        /* Countdown */
+        .countdown-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .countdown-cap {
+          font-size: 11px
+          ;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.15em;
+          color: var(--text-muted, #6b6d70);
+        }
+
+        .countdown-num {
+          font-family: var(--font-mono, monospace);
+          font-size: clamp(4rem, 14vw, 6rem);
+          font-weight: 900;
+          line-height: 1;
+          color: var(--text-primary, #fff);
+          animation: count-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .countdown-num.go {
+          color: var(--color-success, #34d399);
+          text-shadow: 0 0 32px rgba(52, 211, 153, 0.45);
+        }
+
+        @keyframes count-pop {
+          from { transform: scale(0.6); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+
+        .countdown-lights {
+          display: flex;
+          gap: 10px;
+        }
+
+        .light {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: var(--bg-overlay, rgba(255, 255, 255, 0.08));
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+          transition: background 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .light.lit {
+          background: var(--color-error, #f87171);
+          border-color: transparent;
+          box-shadow: 0 0 14px rgba(248, 113, 113, 0.55);
+        }
+
+        .light.go {
+          background: var(--color-success, #34d399);
+          border-color: transparent;
+          box-shadow: 0 0 14px rgba(52, 211, 153, 0.55);
+        }
+
+        /* Result */
+        .result-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+          text-align: center;
+          max-width: 400px;
+        }
+
+        .result-eyebrow {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
+
+        .result-position {
           display: flex;
           align-items: baseline;
           gap: 6px;
-          font-family: var(--font-mono);
-        }
-        .val {
-          font-size: 2.75rem;
-          font-weight: 800;
-          color: var(--color-primary-light);
-          font-variant-numeric: tabular-nums;
-        }
-        .unit {
-          font-size: var(--text-sm);
-          color: var(--text-muted);
-        }
-        .score-detail {
-          font-size: var(--text-sm);
-          color: var(--text-muted);
-          min-height: 1.2em;
+          font-family: var(--font-mono, monospace);
+          font-size: clamp(2.75rem, 8vw, 3.75rem);
+          font-weight: 900;
+          line-height: 1;
         }
 
-        @media (max-width: 480px) {
-          .lane { grid-template-columns: 72px 1fr; gap: var(--space-sm); }
+        .result-position small {
+          font-size: 0.8rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--text-muted, #6b6d70);
+        }
+
+        .result-row {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 1.5rem;
+          padding: 12px 22px;
+          border-radius: var(--radius-lg, 0.75rem);
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+        }
+
+        .result-metric {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          color: var(--text-muted, #6b6d70);
+        }
+
+        .metric-value {
+          font-family: var(--font-mono, monospace);
+          font-size: 1.35rem;
+          font-weight: 800;
+          color: var(--text-primary, #fff);
+          font-variant-numeric: tabular-nums;
+        }
+
+        .metric-value.accent {
+          color: var(--color-accent-light, #eec224);
+        }
+
+        .metric-label {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+
+        .result-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+
+        .btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 9px 18px;
+          font-family: inherit;
+          font-size: 0.875rem;
+          font-weight: 700;
+          border-radius: 9999px;
+          border: 1px solid transparent;
+          cursor: pointer;
+          text-decoration: none;
+          transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .btn-primary {
+          background: var(--color-primary, #6366f1);
+          color: #ffffff;
+          box-shadow: 0 4px 16px var(--color-primary-glow, rgba(99, 102, 241, 0.3));
+        }
+
+        .btn-primary:hover {
+          background: var(--color-primary-light, #818cf8);
+        }
+
+        .btn-secondary {
+          background: var(--bg-surface, #131313);
+          border-color: var(--border-default, rgba(255, 255, 255, 0.12));
+          color: var(--text-secondary, #9a9c9f);
+        }
+
+        .btn-secondary:hover {
+          color: var(--text-primary, #fff);
+          border-color: var(--text-muted, #6b6d70);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+          .lane {
+            grid-template-columns: 72px 1fr;
+            gap: 0.5rem;
+          }
+
+          .diff-caption {
+            display: none;
+          }
+
+          .result-row {
+            gap: 1rem;
+            padding: 10px 14px;
+          }
         }
       `}</style>
     </main>

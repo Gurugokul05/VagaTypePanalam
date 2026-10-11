@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <radialGradient id="v2-of-bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#2a2138"/>
+      <stop offset="100%" stop-color="#120f18"/>
+    </radialGradient>
+    <linearGradient id="v2-of-ring" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c4a4ff"/>
+      <stop offset="100%" stop-color="#6d3fd4"/>
+    </linearGradient>
+    <linearGradient id="v2-of-flame" x1="32" y1="8" x2="32" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffd166"/>
+      <stop offset="55%" stop-color="#f4842c"/>
+      <stop offset="100%" stop-color="#e5484d"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#v2-of-bg)"/>
+  <circle cx="32" cy="32" r="30" stroke="url(#v2-of-ring)" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="25.5" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1"/>
+  <path d="M32 8c3.5 8 12 13 12 25.5C44 42 38.5 48 32 48s-12-6-12-14.5C20 27 24 23.5 25.5 17.5c2 4 3.5 5.5 5 5.5-1-5-.5-10.5 1.5-15Z" fill="url(#v2-of-flame)"/>
+  <path d="M32 30c1.5 3.5 5 5 5 9.5 0 3-2.5 5-5 5s-5-2-5-5c0-3 2.5-4.5 3-8.5.8 1.5 1.4 1.9 2 1.9-.3-1.1-.2-2.4 0-2.9Z" fill="#ffe8a3" fill-opacity="0.9"/>
+  <circle cx="32" cy="32" r="30" stroke="#b794ff" stroke-opacity="0.25" stroke-width="5" stroke-dasharray="2 6" stroke-linecap="round"/>
+</svg>

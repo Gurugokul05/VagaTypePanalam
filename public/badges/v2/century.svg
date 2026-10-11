@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <radialGradient id="v2-ce-bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#2c2517"/>
+      <stop offset="100%" stop-color="#141007"/>
+    </radialGradient>
+    <linearGradient id="v2-ce-ring" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffe08a"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+    <linearGradient id="v2-ce-bolt" x1="22" y1="10" x2="42" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fff3c4"/>
+      <stop offset="55%" stop-color="#fdd034"/>
+      <stop offset="100%" stop-color="#d4a017"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#v2-ce-bg)"/>
+  <circle cx="32" cy="32" r="30" stroke="url(#v2-ce-ring)" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="25.5" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1"/>
+  <path d="M37 12 22 37h9l-2.5 15L44 29h-9.5L37 12Z" fill="url(#v2-ce-bolt)" stroke="#8a6508" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M48 12l1.4 3.4 3.4 1.4-3.4 1.4L48 21.6l-1.4-3.4-3.4-1.4 3.4-1.4L48 12Z" fill="#ffe08a"/>
+  <path d="M15 40l1.1 2.6 2.6 1.1-2.6 1.1L15 47.4l-1.1-2.6-2.6-1.1 2.6-1.1L15 40Z" fill="#ffe08a" fill-opacity="0.8"/>
+  <circle cx="32" cy="32" r="30" stroke="#fdd034" stroke-opacity="0.25" stroke-width="5" stroke-dasharray="2 6" stroke-linecap="round"/>
+</svg>

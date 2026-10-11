@@ -7,6 +7,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { auth } from "@/auth";
 import Script from "next/script";
 import "./globals.css";
+import "../styles/typing.css";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -105,7 +106,7 @@ export default async function RootLayout({
         />
 
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="icon" type="image/svg+xml" href="/logo-theme/vangatypepanalam_logo_exact.svg" />
+        <link rel="icon" type="image/svg+xml" href="/logo-theme/logo.svg" />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

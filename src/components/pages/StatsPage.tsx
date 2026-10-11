@@ -211,6 +211,7 @@ export default function StatsPage() {
           background: var(--bg-base);
           color: var(--text-primary);
           font-family: var(--font-sans);
+          overflow-x: clip;
         }
 
         .profile-layout {
@@ -306,6 +307,13 @@ export default function StatsPage() {
           gap: var(--space-md);
           margin-bottom: var(--space-md);
           border-bottom: 1px solid var(--border-default);
+          overflow-x: auto;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .tabs-container::-webkit-scrollbar {
+          display: none;
         }
 
         .tab-btn {
@@ -318,6 +326,8 @@ export default function StatsPage() {
           border-bottom: 2px solid transparent;
           font-weight: 600;
           transition: all 0.2s ease;
+          white-space: nowrap;
+          flex-shrink: 0;
         }
 
         .tab-btn:hover { color: var(--text-primary); }
@@ -346,6 +356,18 @@ export default function StatsPage() {
         .heatmap-keyboard-wrapper {
           display: flex;
           justify-content: center;
+          overflow-x: auto;
+          max-width: 100%;
+          scrollbar-width: thin;
+        }
+
+        .heatmap-keyboard-wrapper::-webkit-scrollbar {
+          height: 6px;
+        }
+
+        .heatmap-keyboard-wrapper :global(.virtual-keyboard) {
+          margin: 0 auto;
+          flex: 0 0 auto;
         }
 
         .layout-loading {

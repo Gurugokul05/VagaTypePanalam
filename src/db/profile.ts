@@ -60,10 +60,12 @@ export async function recordSessionInProfile(
   const newBestWpm = Math.max(profile.bestWpm, wpm);
   const newTotalMinutes = newTotalTimeMs / 60000;
 
+  // Level curve is intentionally steep: ~5h of typing, 100 sessions,
+  // or 50 WPM of best speed per level point.
   const rawLevel = 1
-    + Math.floor(newTotalMinutes / 60)
-    + Math.floor(newTotalSessions / 30)
-    + Math.floor(newBestWpm / 15);
+    + Math.floor(newTotalMinutes / 300)
+    + Math.floor(newTotalSessions / 100)
+    + Math.floor(newBestWpm / 50);
 
   await _applyAndSave(profile, {
     totalSessions: newTotalSessions,
@@ -101,7 +103,7 @@ export async function unlockKeys(keys: string[]): Promise<void> {
  */
 export async function advanceLevel(): Promise<number> {
   const profile = await getProfile();
-  const newLevel = profile.currentLevel + 1;
+  const newLevel = Math.min(profile.currentLevel + 1, 30);
   await _applyAndSave(profile, { currentLevel: newLevel });
   return newLevel;
 }

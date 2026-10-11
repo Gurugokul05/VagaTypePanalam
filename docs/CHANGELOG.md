@@ -2,6 +2,35 @@
 
 All notable changes to **VangaTypePanalam** will be documented in this file.
 
+## [0.7.1] - 2026-10-11
+
+### Added
+
+- **Redesigned Test Page (`/test`)**:
+  - Overhauled `TestHeader` with modernized duration pill selectors (15s Blitz, 30s Sprint, 60s Standard, 120s Endurance, 300s Marathon) featuring Lucide icons and active glow states.
+  - Upgraded `LiveTestPhase` HUD with an SVG circular timer progress ring, critical time countdown pulsating effects (<10s), live WPM counter, and accuracy badge.
+  - Enhanced `TestResults` scorecard with keyboard shortcut hints (`Enter` to retake, `Tab` to cycle), animated copy scorecard notification, and direct "Practice Weak Keys" quick action.
+- **Redesigned Race Page (`/race`)**:
+  - Implemented 7-tier difficulty pills selector with WPM targets (Beginner 25 WPM to Grandmaster 110 WPM).
+  - Built an arcade cyberpunk asphalt race track with milestone distance markers (START, 25%, 50%, 75%, FINISH 🏁), lane dividers, real-time racer badges, and glowing progress indicators.
+  - Added race starting gantry lights animation, live lane progress trackers, and an arcade Victory Podium with placement medals (🥇/🥈/🥉), XP rewards, and instant rematch controls.
+- **Redesigned Lessons Pages (`/lessons` & `/lessons/[id]`)**:
+  - Built Curriculum Overview Card featuring live progress percentage, lessons completed counter, total stars collected, top speed record, and a "Continue Next Lesson" direct launch button.
+  - Multi-language curriculum selector tabs for English, Tamil, and Tanglish.
+  - Visual 4-chapter roadmap with categorized modules, milestone markers, star ratings, and target key tags.
+  - Upgraded `/lessons/[id]` Studio HUD with top navigation, goal badges (Accuracy & WPM targets), focused typing exercise card, and finger-color-coded virtual keyboard layout.
+- **Layout & Spacing Overhaul (`/test` & `/race`)**:
+  - Eliminated redundant outer page header wrappers and excessive top/bottom margins, unifying hero titles with their dedicated page components.
+  - Constrained test and race page widths to a focused, responsive `900px` container for optimal visual symmetry and reading comfort.
+  - Suppressed duplicate metric strips inside the typing field during Test and Race modes, making the top HUD and race track the single authoritative telemetry views.
+  - Tightened vertical rhythm across headers, duration/difficulty pills, progress rings, asphalt lanes, and typing fields.
+
+### Fixed
+
+- **Turbopack Build Failure (`@tailwindcss/postcss`)**: Removed stray untracked `postcss.config.mjs` that called uninstalled `@tailwindcss/postcss`, restoring clean Next.js/Turbopack evaluation of `globals.css`.
+- **SideNav Dependency Conflict**: Removed dependency on `framer-motion` in `SideNav.tsx`, converting layout and modal components to native HTML elements with CSS transitions and type-safe mouse event handlers.
+- **TypeScript Test Config Scope**: Updated `tsconfig.json` exclude list to ignore `vitest.config.ts` and test files during application compilation.
+
 ## [0.7.0] - 2026-06-17
 
 ### Added

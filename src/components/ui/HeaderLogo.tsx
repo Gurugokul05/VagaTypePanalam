@@ -8,8 +8,8 @@ export default function HeaderLogo() {
   const [svg, setSvg] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
-  const logoFile = theme === 'dark' 
-    ? '/logo-theme/logo.svg' 
+  const logoFile = theme === 'dark'
+    ? '/logo-theme/logo.svg'
     : '/logo-theme/vangatypepanalam_logo_exact.svg';
 
   useEffect(() => {

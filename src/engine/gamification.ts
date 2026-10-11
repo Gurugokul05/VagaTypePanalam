@@ -103,19 +103,24 @@ export function calculateLevel(sessions: Session[], profile: UserProfile | null)
         ? sessions.reduce((sum, s) => sum + s.accuracy, 0) / sessions.length
         : 0;
 
+    // Level curve is intentionally steep: ~5h of typing, 100 sessions,
+    // or 50 WPM of best speed per level point. Accuracy grants at most
+    // +1, and only after 20+ sessions at 97%+ average (anti-smurf gate).
+    const accuracyBonus = totalSessions >= 20 && avgAccuracy >= 0.97 ? 1 : 0;
+
     const rawLevel = 1
-        + Math.floor(totalMinutes / 60)
-        + Math.floor(totalSessions / 30)
-        + Math.floor(bestWpm / 15)
-        + Math.floor((avgAccuracy * 100) / 5);
+        + Math.floor(totalMinutes / 300)
+        + Math.floor(totalSessions / 100)
+        + Math.floor(bestWpm / 50)
+        + accuracyBonus;
 
     const currentLevel = Math.min(rawLevel, 30);
     const nextLevelAt = currentLevel < 30 ? currentLevel + 1 : 30;
 
     const contributions = [
-        Math.min(totalMinutes / 60, 1),
-        Math.min(totalSessions / 30, 1),
-        Math.min(bestWpm / 150, 1),
+        Math.min(totalMinutes / 300, 1),
+        Math.min(totalSessions / 100, 1),
+        Math.min(bestWpm / 100, 1),
         Math.min(avgAccuracy, 1),
     ];
 
@@ -184,7 +189,7 @@ export const BADGES: Record<BadgeId, Badge> = {
         id: 'first-steps',
         title: 'First Steps',
         description: 'Complete your first typing session',
-        icon: '/badges/NewBages/badge-1.svg',
+        icon: '/badges/v2/first-steps.svg',
         rarity: 'common',
         category: 'learning',
         quote: 'Every journey begins with a single stroke.',
@@ -211,7 +216,7 @@ export const BADGES: Record<BadgeId, Badge> = {
         id: 'on-fire',
         title: 'On Fire',
         description: 'Maintain a 7-day typing streak',
-        icon: '/badges/NewBages/export-2026-05-11 130444.svg',
+        icon: '/badges/v2/on-fire.svg',
         rarity: 'rare',
         category: 'dedication',
     },
@@ -243,7 +248,7 @@ export const BADGES: Record<BadgeId, Badge> = {
         id: 'century',
         title: 'Century Club',
         description: 'Type 100+ WPM in a session',
-        icon: '/badges/NewBages/magic.svg',
+        icon: '/badges/v2/century.svg',
         rarity: 'epic',
         category: 'speed',
     },

@@ -36,15 +36,47 @@ export function LiveTestPhase({
     <>
       <ProgressBar pct={pct} />
 
-      <div className="test-phase">
-        <div className="timer" style={{ color: timerColor }}>
-          {secondsLeft}s
-        </div>  
+      <div className="test-live-hud">
+        <div className={`test-timer-badge ${secondsLeft <= 10 && running ? 'timer-urgent' : ''}`}>
+          <div className="timer-ring-svg-wrap">
+            <svg viewBox="0 0 40 40" className="timer-svg">
+              <circle cx="20" cy="20" r="17" className="timer-svg-bg" />
+              <circle
+                cx="20"
+                cy="20"
+                r="17"
+                className="timer-svg-fg"
+                style={{
+                  stroke: timerColor,
+                  strokeDashoffset: `${2 * Math.PI * 17 * (1 - pct / 100)}`,
+                }}
+              />
+            </svg>
+            <span className="timer-value" style={{ color: timerColor }}>
+              {secondsLeft}
+            </span>
+          </div>
+          <span className="timer-unit">SEC</span>
+        </div>
+
+        <div className="test-hud-stats">
+          <div className="hud-stat-pill">
+            <span className="hud-label">LIVE WPM</span>
+            <span className="hud-val hud-wpm">{Math.round(snapshot.wpm)}</span>
+          </div>
+          <div className="hud-stat-pill">
+            <span className="hud-label">ACCURACY</span>
+            <span className="hud-val hud-acc">{(snapshot.accuracy * 100).toFixed(0)}%</span>
+          </div>
+        </div>
       </div>
 
       <div className="typing-area-wrapper">
         {!running && snapshot.wpm === 0 && (
-          <p className="typing-area-hint">Start typing to begin your test...</p>
+          <div className="typing-start-prompt">
+            <span className="prompt-dot" />
+            <span>Type any character below to initiate countdown</span>
+          </div>
         )}
         <TimedTypingWrapper
           language={language}

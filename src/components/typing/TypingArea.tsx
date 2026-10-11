@@ -544,15 +544,6 @@ export default function TypingArea({
           tabIndex={-1}
         />
 
-        {!isFocused && snapshot.state !== 'finished' && (
-          <div className="interaction-overlay" onClick={handleFocus}>
-            <div className="focus-prompt">
-              <span className="focus-icon">➔</span>
-              <span>Click here to focus</span>
-            </div>
-          </div>
-        )}
-
         <div className="text-viewport">
           <div
             className="text-content"

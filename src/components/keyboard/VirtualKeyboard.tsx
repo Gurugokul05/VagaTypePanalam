@@ -195,27 +195,30 @@ export default function VirtualKeyboard({
   };
 
   return (
-    <div className="virtual-keyboard" role="img" aria-label="Virtual keyboard">
-      {layoutToUse.map((row, rowIndex) => (
-        <div key={rowIndex} className="keyboard-row">
-          {row.map((keyData, keyIndex) => (
-            <div
-              key={`${keyData.key}-${keyIndex}`}
-              className={getKeyClassName(keyData)}
-              style={getKeyStyle(keyData)}
-            >
-              {/* Shift label (top-left small text) */}
-              {keyData.shiftLabel && (
-                <span className="key-shift-label">{keyData.shiftLabel}</span>
-              )}
-              {/* Main label */}
-              <span className={keyData.shiftLabel ? 'key-main-label' : 'key-label-only'}>
-                {keyData.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
+    <>
+      {/* Keyboard */}
+      <div className="virtual-keyboard" role="img" aria-label="Virtual keyboard">
+        {layoutToUse.map((row, rowIndex) => (
+          <div key={rowIndex} className="keyboard-row">
+            {row.map((keyData, keyIndex) => (
+              <div
+                key={`${keyData.key}-${keyIndex}`}
+                className={getKeyClassName(keyData)}
+                style={getKeyStyle(keyData)}
+              >
+                {/* Shift label (top-left small text) */}
+                {keyData.shiftLabel && (
+                  <span className="key-shift-label">{keyData.shiftLabel}</span>
+                )}
+                {/* Main label */}
+                <span className={keyData.shiftLabel ? 'key-main-label' : 'key-label-only'}>
+                  {keyData.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
