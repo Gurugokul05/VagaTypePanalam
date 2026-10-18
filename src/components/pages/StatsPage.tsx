@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import { TrendingUp, ArrowRight, Gauge } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { useGamificationStore } from '@/store/gamificationStore';
 import { getAllSessions } from '@/db/sessions';
@@ -103,9 +105,32 @@ export default function StatsPage() {
   return (
     <div className="profile-page">
       {(loading || !gamStats) ? (
-        <div className="layout-loading">
-          {loading ? 'Loading Profile...' : 'Complete a session to see your profile'}
-        </div>
+        loading ? (
+          <div className="layout-loading">Loading Profile...</div>
+        ) : (
+          <div className="stats-empty">
+            <div className="stats-empty-card">
+              <div className="stats-empty-icon">
+                <TrendingUp size={26} />
+              </div>
+              <h2>Your stats are waiting</h2>
+              <p>
+                Complete your first typing session and this page fills up with WPM trends,
+                key mastery, personal bests and badges.
+              </p>
+              <div className="stats-empty-actions">
+                <Link href="/" className="btn btn-primary">
+                  Start practicing
+                  <ArrowRight size={15} />
+                </Link>
+                <Link href="/test" className="btn btn-secondary">
+                  <Gauge size={15} />
+                  Take a speed test
+                </Link>
+              </div>
+            </div>
+          </div>
+        )
       ) : (
         <div className="profile-layout">
           <ProfileCard stats={gamStats} profile={profile} />
@@ -375,6 +400,83 @@ export default function StatsPage() {
           padding: var(--space-3xl);
           color: var(--text-muted);
           min-height: 100vh;
+        }
+
+        .stats-empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: calc(100dvh - var(--header-height, 64px) - 80px);
+          padding: 2rem 1rem;
+        }
+
+        .stats-empty-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 10px;
+          max-width: 430px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-xl, 1rem);
+          padding: 2.25rem 2rem;
+          position: relative;
+          overflow: hidden;
+          animation: empty-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .stats-empty-card::before {
+          content: '';
+          position: absolute;
+          inset: -40% -20% auto;
+          height: 140%;
+          background: radial-gradient(ellipse at 50% 0%, var(--color-primary-glow, rgba(129, 140, 248, 0.16)), transparent 70%);
+          pointer-events: none;
+        }
+
+        .stats-empty-icon {
+          display: grid;
+          place-items: center;
+          width: 52px;
+          height: 52px;
+          border-radius: 14px;
+          color: var(--color-primary-light);
+          background: rgba(129, 140, 248, 0.12);
+          border: 1px solid rgba(129, 140, 248, 0.25);
+          box-shadow: 0 0 24px rgba(129, 140, 248, 0.18);
+        }
+
+        .stats-empty-card h2 {
+          font-size: 1.35rem;
+          font-weight: 800;
+          margin: 6px 0 0;
+          color: var(--text-primary);
+        }
+
+        .stats-empty-card p {
+          font-size: 13px;
+          line-height: 1.55;
+          color: var(--text-secondary);
+          margin: 0 0 8px;
+        }
+
+        .stats-empty-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+
+        @keyframes empty-in {
+          from {
+            opacity: 0;
+            transform: translateY(12px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
         }
 
         @media (max-width: 1024px) {

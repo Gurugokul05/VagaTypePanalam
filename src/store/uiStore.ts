@@ -11,6 +11,7 @@ import type { Language, KeyboardLayout, Theme } from '@/db/schema';
 export type ErrorMode = 'free' | 'stopOnWord' | 'stopOnLetter';
 export type CaretStyle = 'line' | 'outline';
 export type CaretSpeed = 'slow' | 'medium' | 'fast';
+export type KeyboardSize = 'sm' | 'md' | 'lg';
 
 interface UIState {
   // Theme
@@ -26,6 +27,10 @@ interface UIState {
   keyboardLayout: KeyboardLayout;
   setKeyboardLayout: (layout: KeyboardLayout) => void;
 
+  // Keyboard Size
+  keyboardSize: KeyboardSize;
+  setKeyboardSize: (size: KeyboardSize) => void;
+
   // Typing engine options
   errorMode: ErrorMode;
   setErrorMode: (mode: ErrorMode) => void;
@@ -37,6 +42,10 @@ interface UIState {
   // Keyboard visibility
   showKeyboard: boolean;
   toggleKeyboard: () => void;
+
+  // Hand guide (finger placement visualizer)
+  showHands: boolean;
+  toggleHands: () => void;
 
   // Sound effects
   soundEnabled: boolean;
@@ -55,7 +64,7 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      theme: 'light',
+      theme: 'dark',
       setTheme: (theme) => {
         set({ theme });
         if (typeof document !== 'undefined') {
@@ -77,8 +86,14 @@ export const useUIStore = create<UIState>()(
       keyboardLayout: 'qwerty',
       setKeyboardLayout: (keyboardLayout) => set({ keyboardLayout }),
 
+      keyboardSize: 'md',
+      setKeyboardSize: (keyboardSize) => set({ keyboardSize }),
+
       showKeyboard: true,
       toggleKeyboard: () => set((state) => ({ showKeyboard: !state.showKeyboard })),
+
+      showHands: true,
+      toggleHands: () => set((state) => ({ showHands: !state.showHands })),
 
       soundEnabled: true,
       toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
@@ -110,7 +125,14 @@ export const useUIStore = create<UIState>()(
         soundEnabled: state.soundEnabled,
         caretStyle: state.caretStyle,
         caretSpeed: state.caretSpeed,
+        keyboardSize: state.keyboardSize,
       }),
+      // Restore the persisted theme onto <html> so reloads keep the user's choice.
+      onRehydrateStorage: () => (state) => {
+        if (state && typeof document !== 'undefined') {
+          document.documentElement.setAttribute('data-theme', state.theme);
+        }
+      },
     }
   )
 );

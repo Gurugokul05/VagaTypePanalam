@@ -12,6 +12,7 @@ import { SessionComposedChart } from '@/components/test/SessionComposedChart';
 import { generateChartData, getKeyAnalytics, getGradeColor } from './chartUtils';
 import { TestGrade } from './TestGrade';
 import { MetricCard } from './MetricCard';
+import Confetti from '@/components/ui/Confetti';
 
 interface TestResultsProps {
   result: Session;
@@ -76,6 +77,7 @@ export function TestResults({ result, selectedDuration, onRestart }: TestResults
 
   return (
     <div className="results-content animate-slide-up" onKeyDown={handleKeyDown} tabIndex={-1}>
+      {result.wpm >= 80 && <Confetti />}
       <div className="results-meta">
         <span className="meta-tag">timed test</span>
         <span className="meta-tag">{selectedDuration}s</span>

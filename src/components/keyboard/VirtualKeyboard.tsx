@@ -38,17 +38,25 @@ export default function VirtualKeyboard({
     key: string;
     type: 'correct' | 'error';
   } | null>(null);
+  const [fingerColors, setFingerColors] = useState(showFingerColors);
+
+  const kbLayout = useUIStore((s) => s.keyboardLayout);
+  const keyboardSize = useUIStore((s) => s.keyboardSize);
+  const setKeyboardSize = useUIStore((s) => s.setKeyboardSize);
+
+  // Sync fingerColors when prop changes
+  useEffect(() => {
+    setFingerColors(showFingerColors);
+  }, [showFingerColors]);
+
+  const isOWTamil = language === 'ta' && kbLayout === 'phonetic';
+  const layoutToUse = isOWTamil ? OW_TAMIL_LAYOUT : (language === 'ta' ? TAMIL99_LAYOUT : QWERTY_LAYOUT);
 
   // Expected key from the typing session
   const expectedKey =
     snapshot.text && snapshot.cursorPosition < snapshot.text.length
       ? snapshot.text[snapshot.cursorPosition]
       : null;
-
-  const kbLayout = useUIStore((s) => s.keyboardLayout);
-
-  const isOWTamil = language === 'ta' && kbLayout === 'phonetic';
-  const layoutToUse = isOWTamil ? OW_TAMIL_LAYOUT : (language === 'ta' ? TAMIL99_LAYOUT : QWERTY_LAYOUT);
 
   // Listen for physical key presses for visual feedback
   useEffect(() => {
@@ -105,14 +113,14 @@ export default function VirtualKeyboard({
     }
 
     // Finger color
-    if (showFingerColors && !keyData.isModifier) {
+    if (fingerColors && !keyData.isModifier) {
       classes.push(`finger-${keyData.finger}`);
     }
 
     // Space bar special style
     if (keyData.key === ' ') {
       classes.push('space-key');
-      if (showFingerColors) {
+      if (fingerColors) {
         classes.push('finger-thumb');
       }
     }
@@ -160,13 +168,9 @@ export default function VirtualKeyboard({
   const getKeyStyle = (keyData: KeyData): React.CSSProperties | undefined => {
     const style: React.CSSProperties = {};
     
-    // Width logic
+    // Width logic: uses CSS variable --key-size so it scales dynamically
     if (keyData.width && keyData.width !== 1) {
-      // Each standard key = 44px, gap = 2px
-      const baseWidth = 44;
-      const gap = 2;
-      const totalWidth = keyData.width * baseWidth + (keyData.width - 1) * gap;
-      style.width = `${totalWidth}px`;
+      style.width = `calc(${keyData.width} * var(--key-size) + ${(keyData.width - 1) * 2}px)`;
     }
 
     // Heatmap styling overlay
@@ -195,9 +199,42 @@ export default function VirtualKeyboard({
   };
 
   return (
-    <>
+    <div className="virtual-keyboard-wrapper">
       {/* Keyboard */}
-      <div className="virtual-keyboard" role="img" aria-label="Virtual keyboard">
+      <div className={`virtual-keyboard size-${keyboardSize}`} role="img" aria-label="Virtual keyboard">
+        {/* Keyboard Toolbar Controls */}
+        <div className="keyboard-toolbar">
+          <div className="kb-toolbar-left">
+            <span className="kb-layout-pill">
+              {language === 'ta' ? (kbLayout === 'phonetic' ? 'OW Phonetic' : 'Tamil99') : 'QWERTY'}
+            </span>
+            <div className="kb-size-selector" title="Keyboard Size">
+              {(['sm', 'md', 'lg'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`kb-size-btn ${keyboardSize === s ? 'active' : ''}`}
+                  onClick={() => setKeyboardSize(s)}
+                  title={`Size ${s.toUpperCase()}`}
+                >
+                  {s.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="kb-toolbar-right">
+            <button
+              type="button"
+              className={`kb-toggle-btn ${fingerColors ? 'active' : ''}`}
+              onClick={() => setFingerColors((v) => !v)}
+              title="Toggle Finger Colors"
+            >
+              🎨 Colors
+            </button>
+          </div>
+        </div>
+
         {layoutToUse.map((row, rowIndex) => (
           <div key={rowIndex} className="keyboard-row">
             {row.map((keyData, keyIndex) => (
@@ -219,6 +256,6 @@ export default function VirtualKeyboard({
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }

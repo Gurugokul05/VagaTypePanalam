@@ -386,11 +386,14 @@ export default function HomePage() {
           flex-shrink: 0;
           display: flex;
           justify-content: center;
+          width: 100%;
         }
 
-        .keyboard-section :global(.virtual-keyboard) {
-          transform: scale(0.85);
-          transform-origin: top center;
+        .keyboard-section :global(.virtual-keyboard-wrapper) {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
         }
       `}</style>
       </main>

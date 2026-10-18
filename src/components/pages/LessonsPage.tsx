@@ -6,7 +6,7 @@
  * Progressive lesson list with level progression.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -20,7 +20,12 @@ import {
   Target,
   BookOpen,
   Globe,
+  Trophy,
+  Flame,
+  Award,
 } from 'lucide-react';
+import TypingMascot, { type MascotMood } from '@/components/character/TypingMascot';
+import { KEY_TO_FINGER, getFingerColor } from '@/data/keyboards/qwerty';
 import { useUIStore } from '@/store/uiStore';
 import { ENGLISH_LESSONS, type LessonDefinition } from '@/data/lessons/english';
 import { TAMIL_LESSONS } from '@/data/lessons/tamil';
@@ -129,32 +134,62 @@ export default function LessonsPage() {
   const progressPct = Math.round((completedCount / (lessons.length || 1)) * 100);
   const nextLesson = lessons.find((l) => isLevelUnlocked(l.level) && !progress.get(l.id)?.completed) || lessons[0];
 
+  const userRank = useMemo(() => {
+    if (progressPct >= 100) return { title: 'Grandmaster', icon: '👑', color: '#eec224' };
+    if (progressPct >= 75) return { title: 'Keyboard Artisan', icon: '💎', color: '#818cf8' };
+    if (progressPct >= 50) return { title: 'Speed Warrior', icon: '⚡', color: '#34d399' };
+    if (progressPct >= 25) return { title: 'Speed Cadet', icon: '🥈', color: '#60a5fa' };
+    return { title: 'Home Row Initiate', icon: '🥉', color: '#a5b4fc' };
+  }, [progressPct]);
+
+  const heroMascotMood: MascotMood = useMemo(() => {
+    if (progressPct >= 100) return 'celebrate';
+    if (progressPct >= 50) return 'fire';
+    if (completedCount > 0) return 'typing';
+    return 'idle';
+  }, [progressPct, completedCount]);
+
+  const heroMascotMsg = useMemo(() => {
+    if (progressPct >= 100) return "Curriculum fully mastered! Absolute keyboard legend! 🏆";
+    if (progressPct >= 50) return `${completedCount} levels down! You are on fire, keep going! 🔥`;
+    if (completedCount > 0) return `Ready to crush Level ${nextLesson?.level ?? 1}? Let's do it! 🚀`;
+    return "Welcome! Rest fingers on home row (A S D F — J K L ;) to begin! ✨";
+  }, [progressPct, completedCount, nextLesson]);
+
   const chapters = [
     {
       id: 1,
-      title: 'Chapter 1: Home Row Foundations',
-      subtitle: 'Resting finger positions and key stretches',
+      title: 'Chapter 1: Home Row Citadel',
+      subtitle: 'Resting finger positions & foundational muscle memory',
+      badge: 'FOUNDATIONS',
+      icon: '🏰',
       minLevel: 1,
       maxLevel: 8,
     },
     {
       id: 2,
-      title: 'Chapter 2: Upper Row & Vowels',
-      subtitle: 'Upward finger reach and fluid vowel transitions',
+      title: 'Chapter 2: The Upper Row Skyway',
+      subtitle: 'Upward finger reach & fluid vowel transitions',
+      badge: 'AGILITY',
+      icon: '⚡',
       minLevel: 9,
       maxLevel: 16,
     },
     {
       id: 3,
-      title: 'Chapter 3: Lower Row & Consonants',
-      subtitle: 'Downwards curl, punctuation, and compound keys',
+      title: 'Chapter 3: The Deep Lower Row',
+      subtitle: 'Downward finger curl, punctuation & compound keys',
+      badge: 'PRECISION',
+      icon: '🌊',
       minLevel: 17,
       maxLevel: 24,
     },
     {
       id: 4,
-      title: 'Chapter 4: Numbers, Symbols & Full Speed',
-      subtitle: 'Full keyboard stamina and natural typing flow',
+      title: 'Chapter 4: The Apex Realm',
+      subtitle: 'Full keyboard stamina, numbers, symbols & 80+ WPM fluency',
+      badge: 'MASTERY',
+      icon: '👑',
       minLevel: 25,
       maxLevel: 99,
     },
@@ -163,66 +198,104 @@ export default function LessonsPage() {
   return (
     <main className="lessons-page">
       <div className="container">
-        {/* Hero Header & Curriculum Overview */}
-        <div className="lessons-hero">
-          <div className="lessons-badge">
-            <GraduationCap size={15} />
-            <span>Interactive Touch Typing Curriculum</span>
-          </div>
-          <h1 className="lessons-title">Master Touch Typing</h1>
-          <p className="lessons-subtitle">
-            Progressive 30-level course designed to build muscle memory from basic home row to 80+ WPM fluency.
-          </p>
+        {/* Hero Header with Animated Mascot & Curriculum Overview */}
+        <div className="lessons-hero-card">
+          <div className="hero-content-left">
+            <div className="lessons-badge">
+              <GraduationCap size={15} />
+              <span>Interactive Touch Typing Curriculum</span>
+            </div>
+            <h1 className="lessons-title">Master Touch Typing</h1>
+            <p className="lessons-subtitle">
+              Progressive 30-level course designed to build muscle memory from basic home row to 80+ WPM fluency.
+            </p>
 
-          {/* Curriculum Stats Card */}
-          <div className="curriculum-stats-card">
-            <div className="curriculum-stat-group">
-              <div className="c-stat">
-                <span className="c-label">COMPLETED</span>
-                <span className="c-val">{completedCount} <span className="c-unit">/ {lessons.length}</span></span>
-              </div>
-              <div className="c-stat">
-                <span className="c-label">STARS EARNED</span>
-                <span className="c-val star-val">★ {totalStars} <span className="c-unit">/ {maxStars}</span></span>
-              </div>
-              <div className="c-stat">
-                <span className="c-label">TOP SPEED</span>
-                <span className="c-val speed-val">{bestSpeed > 0 ? `${bestSpeed} WPM` : '—'}</span>
-              </div>
+            {/* Language Curriculum Switcher */}
+            <div className="lang-switcher-strip">
+              {[
+                { id: 'en', label: 'English QWERTY', badge: 'Standard' },
+                { id: 'ta', label: 'தமிழ் (Tamil99)', badge: 'Unicode' },
+                { id: 'tanglish', label: 'Tanglish', badge: 'Phonetic' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  className={`lang-tab-btn ${language === tab.id ? 'active' : ''}`}
+                  onClick={() => setLanguage(tab.id as Language)}
+                >
+                  <Globe size={14} />
+                  <span className="lang-tab-name">{tab.label}</span>
+                  <span className="lang-tab-badge">{tab.badge}</span>
+                </button>
+              ))}
             </div>
 
-            <div className="curriculum-progress-track">
-              <div className="curriculum-progress-fill" style={{ width: `${progressPct}%` }} />
-            </div>
-
-            <div className="curriculum-cta-row">
-              <span className="progress-pct-text">{progressPct}% Complete</span>
-              {nextLesson && (
-                <Link href={`/lessons/${nextLesson.id}`} className="resume-btn">
-                  <span>Continue Level {nextLesson.level}: {nextLesson.title}</span>
-                  <ArrowRight size={14} />
+            {/* Quick Resume CTA */}
+            {nextLesson && (
+              <div className="hero-resume-strip">
+                <Link href={`/lessons/${nextLesson.id}`} className="hero-resume-btn">
+                  <Zap size={15} className="resume-icon" />
+                  <span>Resume Mission: <strong>Level {nextLesson.level} — {nextLesson.title}</strong></span>
+                  <ArrowRight size={15} />
                 </Link>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* Language Curriculum Switcher */}
-          <div className="lang-switcher-strip">
-            {[
-              { id: 'en', label: 'English QWERTY', badge: 'Standard' },
-              { id: 'ta', label: 'தமிழ் (Tamil99)', badge: 'Unicode' },
-              { id: 'tanglish', label: 'Tanglish', badge: 'Phonetic' },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                className={`lang-tab-btn ${language === tab.id ? 'active' : ''}`}
-                onClick={() => setLanguage(tab.id as Language)}
-              >
-                <Globe size={14} />
-                <span className="lang-tab-name">{tab.label}</span>
-                <span className="lang-tab-badge">{tab.badge}</span>
-              </button>
-            ))}
+          {/* Hero Mascot & Progress Radial Station */}
+          <div className="hero-mascot-station">
+            <TypingMascot
+              mood={heroMascotMood}
+              message={heroMascotMsg}
+              size="lg"
+            />
+
+            {/* Radial Mastery Gauge & Rank */}
+            <div className="hero-rank-card">
+              <div className="radial-progress-box">
+                <svg viewBox="0 0 80 80" className="radial-svg">
+                  <circle cx="40" cy="40" r="32" className="radial-track" />
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="32"
+                    className="radial-fill"
+                    style={{
+                      strokeDasharray: 201,
+                      strokeDashoffset: 201 - (201 * progressPct) / 100,
+                    }}
+                  />
+                </svg>
+                <div className="radial-center-text">
+                  <span className="radial-pct">{progressPct}%</span>
+                </div>
+              </div>
+
+              <div className="rank-details">
+                <span className="rank-badge" style={{ borderColor: userRank.color, color: userRank.color }}>
+                  <span>{userRank.icon}</span>
+                  <span>{userRank.title}</span>
+                </span>
+                <span className="rank-sub">{completedCount} of {lessons.length} Completed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Curriculum Stats Metric Strip */}
+        <div className="curriculum-metrics-bar">
+          <div className="c-stat-box">
+            <span className="c-stat-label">COMPLETED LEVELS</span>
+            <span className="c-stat-val">{completedCount} <small>/ {lessons.length}</small></span>
+          </div>
+          <div className="c-stat-divider" />
+          <div className="c-stat-box">
+            <span className="c-stat-label">STARS EARNED</span>
+            <span className="c-stat-val star-val">★ {totalStars} <small>/ {maxStars}</small></span>
+          </div>
+          <div className="c-stat-divider" />
+          <div className="c-stat-box">
+            <span className="c-stat-label">TOP LESSON SPEED</span>
+            <span className="c-stat-val speed-val">{bestSpeed > 0 ? `${bestSpeed} WPM` : '—'}</span>
           </div>
         </div>
 
@@ -244,17 +317,18 @@ export default function LessonsPage() {
               return (
                 <div key={chapter.id} className="chapter-section">
                   <div className="chapter-header">
-                    <div>
+                    <div className="chapter-title-group">
+                      <span className="chapter-theme-badge">{chapter.icon} {chapter.badge}</span>
                       <h2 className="chapter-title">{chapter.title}</h2>
                       <p className="chapter-subtitle">{chapter.subtitle}</p>
                     </div>
                     <div className="chapter-progress-pill">
-                      {chapterCompleted} / {chapterLessons.length} Done
+                      {chapterCompleted} / {chapterLessons.length} Mastered
                     </div>
                   </div>
 
                   <div className="lessons-grid">
-                    {chapterLessons.map(lesson => {
+                    {chapterLessons.map((lesson, idx) => {
                       const prog = progress.get(lesson.id);
                       const unlocked = isLevelUnlocked(lesson.level);
                       const completed = prog?.completed ?? false;
@@ -265,7 +339,16 @@ export default function LessonsPage() {
                         <div
                           key={lesson.id}
                           className={`lesson-card ${!unlocked ? 'locked' : ''} ${completed ? 'completed' : ''} ${isNext ? 'is-next' : ''}`}
+                          style={{ '--i': idx } as React.CSSProperties}
                         >
+                          {/* Recommended Next Beacon */}
+                          {isNext && (
+                            <div className="next-mission-beacon">
+                              <Sparkles size={11} />
+                              <span>UP NEXT</span>
+                            </div>
+                          )}
+
                           <div className="card-top-bar">
                             <span className="level-badge">LEVEL {lesson.level}</span>
                             {!unlocked ? (
@@ -284,15 +367,24 @@ export default function LessonsPage() {
                           <h3 className="lesson-name">{lesson.title}</h3>
                           <p className="lesson-desc">{lesson.description}</p>
 
-                          {/* Key preview badges */}
+                          {/* Key preview badges with finger color coding */}
                           <div className="lesson-keys-box">
                             <div className="keys-label">Target Keys</div>
                             <div className="lesson-keys">
                               {lesson.keys.slice(0, 8).map(k => {
+                                const fingerInfo = KEY_TO_FINGER.get(k.toLowerCase());
+                                const fingerColor = fingerInfo ? getFingerColor(fingerInfo.finger) : undefined;
                                 const taToEn = keyboardLayout === 'phonetic' ? TA_TO_EN_OW_MAP : TA_TO_EN_MAP;
                                 const enHint = language === 'ta' && taToEn[k] ? taToEn[k] : null;
                                 return (
-                                  <span key={k} className={`key-badge ${enHint ? 'has-hint' : ''}`}>
+                                  <span
+                                    key={k}
+                                    className={`key-badge ${enHint ? 'has-hint' : ''}`}
+                                    style={{ borderColor: fingerColor ? `${fingerColor}` : undefined }}
+                                  >
+                                    {fingerColor && (
+                                      <span className="card-key-dot" style={{ backgroundColor: fingerColor }} />
+                                    )}
                                     <span className="key-char">{k === ' ' ? '␣' : k.toUpperCase()}</span>
                                     {enHint && <span className="key-hint">{enHint}</span>}
                                   </span>
@@ -366,14 +458,30 @@ export default function LessonsPage() {
           padding: 0 var(--space-md);
         }
 
-        /* --- Hero Header --- */
-        .lessons-hero {
+        /* --- Hero Card with Mascot --- */
+        .lessons-hero-card {
+          background: linear-gradient(135deg, rgba(129, 140, 248, 0.06), rgba(20, 21, 30, 0.9));
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-2xl, 24px);
+          padding: var(--space-xl) var(--space-2xl);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: var(--space-2xl);
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .hero-content-left {
           display: flex;
           flex-direction: column;
-          align-items: center;
-          text-align: center;
+          align-items: flex-start;
           gap: var(--space-md);
+          flex: 1;
+          min-width: 0;
         }
+
         .lessons-badge {
           display: inline-flex;
           align-items: center;
@@ -388,6 +496,7 @@ export default function LessonsPage() {
           letter-spacing: 0.08em;
           color: var(--color-primary-light);
         }
+
         .lessons-title {
           font-size: clamp(2rem, 4vw, 2.75rem);
           font-weight: 800;
@@ -397,103 +506,173 @@ export default function LessonsPage() {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
+
         .lessons-subtitle {
           font-size: var(--text-sm);
           color: var(--text-secondary);
           margin: 0;
-          max-width: 580px;
+          max-width: 540px;
           line-height: 1.6;
         }
 
-        /* --- Curriculum Stats Card --- */
-        .curriculum-stats-card {
-          width: 100%;
-          max-width: 760px;
+        .hero-resume-strip {
+          margin-top: var(--space-xs);
+        }
+
+        .hero-resume-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+          color: #ffffff;
+          padding: 8px 20px;
+          border-radius: var(--radius-full);
+          font-size: 13px;
+          font-weight: 700;
+          text-decoration: none;
+          box-shadow: 0 4px 20px rgba(129, 140, 248, 0.4);
+          transition: all 0.2s ease;
+          animation: resumeGlowPulse 2.4s ease-in-out infinite;
+        }
+
+        .hero-resume-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 26px rgba(129, 140, 248, 0.6);
+        }
+
+        @keyframes resumeGlowPulse {
+          0%, 100% { box-shadow: 0 4px 20px rgba(129, 140, 248, 0.35); }
+          50% { box-shadow: 0 4px 28px rgba(129, 140, 248, 0.65); }
+        }
+
+        /* --- Hero Mascot Station --- */
+        .hero-mascot-station {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: var(--space-md);
+          flex-shrink: 0;
+        }
+
+        .hero-rank-card {
+          display: flex;
+          align-items: center;
+          gap: var(--space-md);
           background: var(--bg-surface);
           border: 1px solid var(--border-default);
           border-radius: var(--radius-xl);
-          padding: var(--space-lg);
+          padding: 8px 16px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+
+        .radial-progress-box {
+          position: relative;
+          width: 58px;
+          height: 58px;
+        }
+
+        .radial-svg {
+          width: 100%;
+          height: 100%;
+          transform: rotate(-90deg);
+        }
+
+        .radial-track {
+          fill: none;
+          stroke: rgba(255, 255, 255, 0.08);
+          stroke-width: 6;
+        }
+
+        .radial-fill {
+          fill: none;
+          stroke: var(--color-primary);
+          stroke-width: 6;
+          stroke-linecap: round;
+          transition: stroke-dashoffset 1s ease;
+        }
+
+        .radial-center-text {
+          position: absolute;
+          inset: 0;
           display: flex;
-          flex-direction: column;
-          gap: var(--space-md);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          align-items: center;
+          justify-content: center;
         }
-        .curriculum-stat-group {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: var(--space-md);
-          text-align: center;
+
+        .radial-pct {
+          font-size: 12px;
+          font-weight: 800;
+          font-family: var(--font-mono);
+          color: var(--text-primary);
         }
-        .c-stat {
+
+        .rank-details {
           display: flex;
           flex-direction: column;
           gap: 2px;
         }
-        .c-label {
+
+        .rank-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .rank-sub {
+          font-size: 11px;
+          color: var(--text-muted);
+          font-family: var(--font-mono);
+        }
+
+        /* --- Curriculum Metrics Bar --- */
+        .curriculum-metrics-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-around;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-xl);
+          padding: var(--space-md) var(--space-xl);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .c-stat-box {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+        }
+
+        .c-stat-label {
           font-size: 10px;
           font-weight: 700;
           letter-spacing: 0.08em;
           color: var(--text-muted);
         }
-        .c-val {
+
+        .c-stat-val {
           font-size: 1.4rem;
           font-weight: 800;
           font-family: var(--font-mono);
           color: var(--text-primary);
         }
-        .c-unit {
+
+        .c-stat-val small {
           font-size: 12px;
           color: var(--text-muted);
           font-weight: 600;
         }
+
+        .c-stat-divider {
+          width: 1px;
+          height: 32px;
+          background: var(--border-subtle);
+        }
+
         .star-val { color: var(--color-accent); }
         .speed-val { color: var(--color-success); }
-
-        .curriculum-progress-track {
-          width: 100%;
-          height: 6px;
-          background: var(--bg-overlay);
-          border-radius: 9999px;
-          overflow: hidden;
-        }
-        .curriculum-progress-fill {
-          height: 100%;
-          background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-success) 100%);
-          border-radius: 9999px;
-          transition: width 0.6s ease;
-        }
-        .curriculum-cta-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: var(--space-sm);
-        }
-        .progress-pct-text {
-          font-size: 12px;
-          font-weight: 700;
-          font-family: var(--font-mono);
-          color: var(--text-muted);
-        }
-        .resume-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          font-weight: 700;
-          background: rgba(129, 140, 248, 0.15);
-          border: 1px solid rgba(129, 140, 248, 0.3);
-          color: var(--color-primary-light);
-          padding: 6px 14px;
-          border-radius: 9999px;
-          text-decoration: none;
-          transition: all 0.2s ease;
-        }
-        .resume-btn:hover {
-          background: var(--color-primary);
-          color: #ffffff;
-          transform: translateY(-1px);
-        }
 
         /* --- Language Switcher Strip --- */
         .lang-switcher-strip {
@@ -503,7 +682,6 @@ export default function LessonsPage() {
           border: 1px solid var(--border-default);
           border-radius: 9999px;
           padding: 4px;
-          margin-top: var(--space-xs);
         }
         .lang-tab-btn {
           display: inline-flex;
@@ -553,6 +731,18 @@ export default function LessonsPage() {
           padding-bottom: var(--space-sm);
           gap: var(--space-md);
         }
+        .chapter-title-group {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .chapter-theme-badge {
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          color: var(--color-primary-light);
+          text-transform: uppercase;
+        }
         .chapter-title {
           font-size: 1.25rem;
           font-weight: 800;
@@ -562,7 +752,7 @@ export default function LessonsPage() {
         .chapter-subtitle {
           font-size: 12px;
           color: var(--text-muted);
-          margin: 2px 0 0;
+          margin: 0;
         }
         .chapter-progress-pill {
           font-size: 11px;
@@ -574,6 +764,62 @@ export default function LessonsPage() {
           border-radius: 9999px;
           padding: 4px 12px;
           white-space: nowrap;
+        }
+
+        /* --- Next Mission Beacon --- */
+        .next-mission-beacon {
+          position: absolute;
+          top: -10px;
+          right: 16px;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+          color: #ffffff;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          padding: 3px 10px;
+          border-radius: 9999px;
+          box-shadow: 0 0 16px var(--color-primary-glow);
+          animation: beaconPulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes beaconPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.08); }
+        }
+
+        .card-key-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          box-shadow: 0 0 6px currentColor;
+        }
+
+        @media (max-width: 860px) {
+          .lessons-hero-card {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .hero-mascot-station {
+            flex-direction: row;
+            justify-content: space-between;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .hero-mascot-station {
+            flex-direction: column;
+          }
+          .curriculum-metrics-bar {
+            flex-direction: column;
+            gap: var(--space-md);
+          }
+          .c-stat-divider {
+            width: 80%;
+            height: 1px;
+          }
         }
 
         /* --- Grid & Cards --- */
@@ -592,6 +838,18 @@ export default function LessonsPage() {
           gap: var(--space-sm);
           transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
           position: relative;
+          animation: card-rise 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+          animation-delay: calc(min(var(--i, 0), 10) * 35ms);
+        }
+        @keyframes card-rise {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         .lesson-card:hover:not(.locked) {
           transform: translateY(-3px);

@@ -111,6 +111,13 @@ export default async function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="google-adsense-account" content="ca-pub-7627314206553844" />
+        {/* Apply persisted theme before first paint to avoid a flash of the wrong theme */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('VANGA-ui-store');var t=s?JSON.parse(s).state.theme:'dark';if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}})();`,
+          }}
+        />
         <script
           type="application/ld+json"
           suppressHydrationWarning

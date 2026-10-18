@@ -19,6 +19,9 @@ If you are an AI tasked with modifying this codebase, hold these architectural r
 Located in `src/app` and `src/components`.
 - **`TopHeader.tsx`**: Navigation + Auth UI. Triggers `requestCloudSync()` on session detection.
 - **`TypingArea.tsx`**: High-frequency typing interface.
+- **`VirtualKeyboard.tsx`**: Interactive virtual keyboard with dynamic scalable sizing (`sm`, `md`, `lg`), controls toolbar, and Keybr-style finger color coding.
+- **`HandVisualizer.tsx`**: Vector-based anatomical hand visualizer displaying real animated finger movement (home row resting, upward/downward reaches, tap keystroke impulse, fingertip glow) and live placement guidance.
+- **`TypingMascot.tsx`**: Interactive animated cyber-cat typing mascot ("Vanga") with dynamic moods (idle, typing, fire streak, celebrate, oops), speech bubble tips, and real-time encouragement.
 - **`LeftSidebar.tsx` / `RightSidebar.tsx`**: Dashboard metrics and live analytics.
 - **`AuthProvider.tsx`**: Client-side wrapper for Auth.js.
 

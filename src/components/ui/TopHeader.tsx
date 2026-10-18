@@ -13,7 +13,7 @@ import {
   Volume2, VolumeX, ChevronDown, LogOut,
   User as UserIcon, LogIn, Cloud, Settings,
   Shield, Eye, EyeOff, Keyboard, Timer,
-  Gamepad2, BookOpen, BarChart2,
+  Gamepad2, BookOpen, BarChart2, Hand,
 } from 'lucide-react';
 import AuthModal from './AuthModal';
 import HeaderLogo from './HeaderLogo';
@@ -37,6 +37,7 @@ export default function TopHeader() {
   const {
     theme, toggleTheme, language, setLanguage, isOnline,
     soundEnabled, toggleSound, showKeyboard, toggleKeyboard,
+    showHands, toggleHands, keyboardSize, setKeyboardSize,
     caretStyle, setCaretStyle, caretSpeed, setCaretSpeed,
     keyboardLayout, setKeyboardLayout,
   } = useUIStore();
@@ -268,6 +269,25 @@ export default function TopHeader() {
                         <div className="toggle-thumb" />
                       </div>
                     </button>
+
+                    <button className="dd-row" onClick={toggleHands}>
+                      <span className="dd-left">
+                        <Hand size={13} />
+                        Hand Guide
+                      </span>
+                      <div className={`toggle-switch${showHands ? ' on' : ''}`}>
+                        <div className="toggle-thumb" />
+                      </div>
+                    </button>
+
+                    <label className="dd-row">
+                      <span className="dd-left">Keyboard Size</span>
+                      <select className="dd-select" value={keyboardSize} onChange={(e) => setKeyboardSize(e.target.value as typeof keyboardSize)}>
+                        <option value="sm">Small</option>
+                        <option value="md">Medium</option>
+                        <option value="lg">Large</option>
+                      </select>
+                    </label>
 
                     <div className="dd-divider" />
                     <div className="dd-section">Caret</div>

@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { MousePointerClick } from 'lucide-react';
 import { SessionTracker } from '@/engine/sessionTracker';
 import type { SessionSnapshot } from '@/engine/sessionTracker';
 import type { Language, Session } from '@/db/schema';
@@ -482,6 +483,19 @@ export default function TypingArea({
   const displayAccuracy = snapshot.state === 'idle' ? idleStats.accuracy : snapshot.accuracy;
   const displayElapsedMs = snapshot.state === 'idle' ? idleStats.todayTimeMs : snapshot.elapsedMs;
 
+  // Flash the accuracy value red briefly whenever it drops (error feedback)
+  const [accuracyDropped, setAccuracyDropped] = useState(false);
+  const prevAccuracyRef = useRef(displayAccuracy);
+  useEffect(() => {
+    if (displayAccuracy < prevAccuracyRef.current - 0.0001) {
+      setAccuracyDropped(true);
+      const t = setTimeout(() => setAccuracyDropped(false), 320);
+      prevAccuracyRef.current = displayAccuracy;
+      return () => clearTimeout(t);
+    }
+    prevAccuracyRef.current = displayAccuracy;
+  }, [displayAccuracy]);
+
   const caretSpeedMs = caretSpeed === 'slow' ? CARET_SPEED_SLOW : caretSpeed === 'fast' ? CARET_SPEED_FAST : CARET_SPEED_MEDIUM;
   const activeCaretStyle = caretStyle === 'outline' ? 'outline' : 'line';
 
@@ -491,17 +505,17 @@ export default function TypingArea({
       <div className={`inline-metrics ${segmentFlash ? 'segment-flash' : ''}`}>
         <div className="im-stat">
           <span className="im-label">WPM</span>
-          <span className="im-value im-primary">{displayWpm.toFixed(0)}</span>
+          <span className={`im-value im-primary tnum ${segmentFlash ? 'value-pop' : ''}`}>{displayWpm.toFixed(0)}</span>
         </div>
         <div className="im-divider" />
         <div className="im-stat">
           <span className="im-label">ACCURACY</span>
-          <span className="im-value">{(displayAccuracy * 100).toFixed(1)}<small>%</small></span>
+          <span className={`im-value tnum ${accuracyDropped ? 'value-drop' : ''}`}>{(displayAccuracy * 100).toFixed(1)}<small>%</small></span>
         </div>
         <div className="im-divider" />
         <div className="im-stat">
           <span className="im-label">TIME</span>
-          <span className="im-value">{formatDuration(displayElapsedMs)}</span>
+          <span className="im-value tnum">{formatDuration(displayElapsedMs)}</span>
         </div>
       </div>
 
@@ -559,6 +573,14 @@ export default function TypingArea({
             {renderWords()}
           </div>
         </div>
+
+        {/* Focus affordance — shown whenever the typing field is not focused */}
+        {!isFocused && (
+          <div className="focus-hint" aria-hidden="true">
+            <MousePointerClick size={15} />
+            <span>Click here to focus</span>
+          </div>
+        )}
       </div>
 
 

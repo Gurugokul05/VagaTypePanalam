@@ -128,6 +128,11 @@
   --max-width: 1440px;
   --header-height: 56px;
   --typing-max-width: 800px;
+
+  /* Ambient & skeletons (v2.1) */
+  --ambient-glow-1: rgba(129, 140, 248, 0.07);
+  --ambient-glow-2: rgba(238, 194, 36, 0.04);
+  --skeleton-sheen: rgba(255, 255, 255, 0.045);
 }
 
 /* ── Morning Mode (Light Theme) ── */
@@ -177,6 +182,11 @@
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-glow: 0 0 20px var(--color-primary-glow);
   --shadow-header: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  /* Ambient & skeletons (v2.1) */
+  --ambient-glow-1: rgba(99, 102, 241, 0.06);
+  --ambient-glow-2: rgba(212, 160, 23, 0.05);
+  --skeleton-sheen: rgba(0, 0, 0, 0.04);
 }
 
 /* ── Base Styles ── */
@@ -188,7 +198,10 @@ html {
 
 body {
   font-family: var(--font-sans);
-  background-color: var(--bg-base);
+  background:
+    radial-gradient(60rem 30rem at 12% -5%, var(--ambient-glow-1), transparent 70%),
+    radial-gradient(52rem 26rem at 88% 105%, var(--ambient-glow-2), transparent 70%),
+    var(--bg-base);
   color: var(--text-primary);
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
@@ -331,6 +344,11 @@ h4 {
   transform: scale(0.97);
 }
 
+.btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .btn-primary {
   background: var(--color-primary);
   color: white;
@@ -339,6 +357,11 @@ h4 {
 .btn-primary:hover {
   background: var(--color-primary-dark);
   box-shadow: var(--shadow-glow);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0) scale(0.97);
 }
 
 .btn-secondary {
@@ -490,6 +513,174 @@ h4 {
 .animate-slide-up {
   animation: slideUp 0.4s ease forwards;
 }
+
+/* ════════════════════════════════════════════
+   Motion & Polish (v2.1)
+   Route transitions, skeletons, hover lift,
+   stagger, value pops, reduced-motion guard.
+   ════════════════════════════════════════════ */
+
+/* Route transition — replayed on every navigation via app/template.tsx */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: page-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* Skeleton shimmer (loading states) */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
+  animation: shimmer 1.4s ease infinite;
+}
+
+/* Hover lift for interactive cards */
+.hover-lift {
+  transition:
+    transform var(--transition-base),
+    box-shadow var(--transition-base),
+    border-color var(--transition-base);
+}
+
+@media (hover: hover) {
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-default);
+  }
+}
+
+/* Staggered entrance for lists/grids: add .stagger to the container */
+.stagger>* {
+  animation: fadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.stagger>*:nth-child(1) {
+  animation-delay: 0.02s;
+}
+
+.stagger>*:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.stagger>*:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.stagger>*:nth-child(4) {
+  animation-delay: 0.14s;
+}
+
+.stagger>*:nth-child(5) {
+  animation-delay: 0.18s;
+}
+
+.stagger>*:nth-child(6) {
+  animation-delay: 0.22s;
+}
+
+.stagger>*:nth-child(7) {
+  animation-delay: 0.26s;
+}
+
+.stagger>*:nth-child(8) {
+  animation-delay: 0.3s;
+}
+
+.stagger>*:nth-child(9) {
+  animation-delay: 0.34s;
+}
+
+.stagger>*:nth-child(10) {
+  animation-delay: 0.38s;
+}
+
+.stagger>*:nth-child(11) {
+  animation-delay: 0.42s;
+}
+
+.stagger>*:nth-child(12) {
+  animation-delay: 0.46s;
+}
+
+/* Value change pop — applied briefly via JS when a metric updates */
+@keyframes value-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.12);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.value-pop {
+  animation: value-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: inline-block;
+}
+
+/* Tabular numerals for metric readouts */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress bars animate width changes smoothly */
+.progress-animated {
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Reduced motion — disable decorative animation globally */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .page-transition,
+  .stagger>* {
+    animation: none !important;
+  }
+
+  .skeleton::after {
+    animation: none !important;
+  }
+}
+
 
 /* ── Layout: Top Header + Main ── */
 #app-root {

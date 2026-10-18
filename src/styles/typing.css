@@ -61,6 +61,25 @@
   color: var(--color-primary-light);
 }
 
+/* Accuracy value flashes red briefly when it drops */
+.value-drop {
+  animation: value-drop-flash 0.32s ease;
+}
+
+@keyframes value-drop-flash {
+  0% {
+    color: var(--color-error);
+    transform: translateY(1px);
+  }
+
+  100% {
+    color: inherit;
+    transform: translateY(0);
+  }
+}
+
+/* Metric value pop — defined globally on .value-pop */
+
 .im-divider {
   width: 1px;
   height: 24px;
@@ -82,15 +101,65 @@
 }
 
 .text-display:not(.focused) .text-viewport {
-  opacity: 0.3;
-  filter: blur(1.5px);
+  opacity: 0.45;
+  filter: blur(1px);
 }
 
-/* Fixed-height viewport: shows ~3 lines, hides overflow */
 .text-viewport {
   position: relative;
   height: calc(3 * 1.85 * clamp(1.1rem, 1.6vw, 1.4rem));
   overflow: hidden;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+/* ── Focus affordance chip (practice / lessons) ── */
+.focus-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background: var(--bg-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 6;
+  animation:
+    focus-hint-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) backwards,
+    focus-hint-breathe 2.6s ease-in-out 0.4s infinite;
+}
+
+.focus-hint svg {
+  color: var(--color-primary-light);
+}
+
+@keyframes focus-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.96);
+  }
+}
+
+@keyframes focus-hint-breathe {
+
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Inner container that translates for smooth line scrolling */
