@@ -14,7 +14,7 @@ This document outlines the planned features and milestones for the VangaTypePana
 - [x] **Gamification V2**: Dynamic Rank system, Badge collection, and XP progression.
 - [x] **Cloud Sync**: Optional background synchronization to Neon PostgreSQL via Auth.js & Prisma.
 - [x] **Admin Central**: Internal dashboard for managing gamification assets and SVG injection.
-- [x] **Multiplayer Foundations**: Socket.IO integration for real-time typing races (ready for deployment).
+- [~] **Multiplayer Foundations**: P2P WebRTC races (host-authoritative) with Postgres-based signaling & matchmaking — implemented in `src/lib/multiplayer/` + `/api/race/*`. Pending: `npx prisma db push` (adds `RaceRoom`/`RaceSignal` tables) and RacePage UI integration. *Note: the original Socket.IO plan was replaced — Vercel cannot host persistent sockets; see `docs/MULTIPLAYER.md`.*
 - [ ] **Sound Expansion**: Diverse mechanical keyboard sound profiles (Blue, Brown, Red switches) and error tactile feedback.
 - [ ] **Full PWA Support**: Service Worker integration via Serwist for true "installable" offline capability.
 - [ ] **Internationalization (i18n)**: Multi-language UI support (Tamil/English interface toggle).

@@ -36,6 +36,108 @@ export function validateFileSize(
 }
 
 /**
+ * Validate an email address shape (plus RFC 5321 length limits).
+ */
+export function validateEmail(value: unknown): { valid: boolean; error?: string } {
+  if (typeof value !== 'string' || value.length === 0) {
+    return { valid: false, error: 'Email is required' };
+  }
+
+  if (value.length > 254) {
+    return { valid: false, error: 'Email is too long' };
+  }
+
+  if (/\s/.test(value)) {
+    return { valid: false, error: 'Email must not contain whitespace' };
+  }
+
+  const atIndex = value.indexOf('@');
+  if (atIndex <= 0 || atIndex !== value.lastIndexOf('@')) {
+    return { valid: false, error: 'Email must contain a single @' };
+  }
+
+  const local = value.slice(0, atIndex);
+  const domain = value.slice(atIndex + 1);
+
+  if (local.length > 64) {
+    return { valid: false, error: 'Email local part is too long' };
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
+    return { valid: false, error: 'Email format is invalid' };
+  }
+
+  if (domain.startsWith('.') || domain.endsWith('.') || domain.includes('..')) {
+    return { valid: false, error: 'Email domain is invalid' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate a password: at least 8 chars with at least one letter and one
+ * number. Caps length at 128 to guard bcrypt from DoS via huge inputs.
+ */
+export function validatePassword(value: unknown): { valid: boolean; error?: string } {
+  if (typeof value !== 'string' || value.length === 0) {
+    return { valid: false, error: 'Password is required' };
+  }
+
+  if (value.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters' };
+  }
+
+  if (value.length > 128) {
+    return { valid: false, error: 'Password must be under 129 characters' };
+  }
+
+  if (!/[A-Za-z]/.test(value)) {
+    return { valid: false, error: 'Password must contain at least one letter' };
+  }
+
+  if (!/[0-9]/.test(value)) {
+    return { valid: false, error: 'Password must contain at least one number' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Parse a JSON request body while enforcing a maximum size, both via the
+ * content-length header and the actual decoded body. Prevents memory abuse
+ * from oversized payloads on API routes.
+ */
+export async function readJsonWithLimit(
+  req: Request,
+  maxBytes: number
+): Promise<{ ok: true; body: unknown } | { ok: false; error: string }> {
+  const declaredLength = req.headers.get('content-length');
+  if (declaredLength !== null) {
+    const parsed = Number(declaredLength);
+    if (Number.isFinite(parsed) && parsed > maxBytes) {
+      return { ok: false, error: 'Request body too large' };
+    }
+  }
+
+  let raw: string;
+  try {
+    raw = await req.text();
+  } catch {
+    return { ok: false, error: 'Failed to read request body' };
+  }
+
+  if (new TextEncoder().encode(raw).byteLength > maxBytes) {
+    return { ok: false, error: 'Request body too large' };
+  }
+
+  try {
+    return { ok: true, body: JSON.parse(raw) };
+  } catch {
+    return { ok: false, error: 'Invalid JSON body' };
+  }
+}
+
+/**
  * Safely strip dangerous content from SVG strings.
  * Uses iterative removal to handle nested/obfuscated tags,
  * and covers all common event handler patterns.

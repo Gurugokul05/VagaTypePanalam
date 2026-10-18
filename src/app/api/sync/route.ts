@@ -1,6 +1,13 @@
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { readJsonWithLimit } from "@/lib/validation";
+import { rateLimit } from "@/lib/rateLimit";
+
+// Full-history backup push: generous but bounded, so a buggy or malicious
+// client cannot push an arbitrarily large body into the server.
+// (Follow-up: move to incremental sync + payload pruning.)
+const MAX_SYNC_BODY_BYTES = 25 * 1024 * 1024;
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -9,9 +16,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const limitResult = rateLimit(`sync:${session.user.id}`, {
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (!limitResult.allowed) {
+    return NextResponse.json(
+      { error: "Too many sync requests" },
+      { status: 429, headers: { "Retry-After": String(limitResult.retryAfterSeconds) } }
+    );
+  }
+
   try {
-    const body = await req.json();
-    const { stats, sessions, profile } = body;
+    const parsed = await readJsonWithLimit(req, MAX_SYNC_BODY_BYTES);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+
+    const { stats, sessions, profile } = parsed.body as {
+      stats?: any[];
+      sessions?: any[];
+      profile?: any;
+    };
+
+    if (!Array.isArray(stats) || !Array.isArray(sessions)) {
+      return NextResponse.json(
+        { error: "Invalid payload: stats and sessions must be arrays" },
+        { status: 400 }
+      );
+    }
 
     const backup = await prisma.cloudBackup.upsert({
       where: { userId: session.user.id },

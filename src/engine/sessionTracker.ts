@@ -20,6 +20,7 @@ import {
   MIN_SESSION_CHARS,
   PRACTICE_SEGMENT_LENGTH,
   MAX_TEXT_BUFFER,
+  DERIVED_STATS_TTL_MS,
 } from './constants';
 import { requestCloudSync } from '@/lib/sync';
 
@@ -106,6 +107,13 @@ export class SessionTracker {
 
   // Components
   private keyProfiler: KeyProfiler;
+
+  // Time-gated cache for O(n) derived stats (avoid recomputing per keystroke)
+  private derivedStatsCache: {
+    at: number;
+    consistency: number;
+    slowestDigraphs: { char: string; latency: number }[];
+  } | null = null;
 
   // Callbacks
   private onStateChange?: (snapshot: SessionSnapshot) => void;
@@ -422,7 +430,9 @@ export class SessionTracker {
     const charIdx = this.currentWordInput.length;
     const currentExpectedChar = charIdx < currentWord.length ? currentWord[charIdx] : null;
 
-    return {
+    const derived = this.getDerivedStats();
+
+    const snapshot = {
       state: this._state,
       text: this.text,
       cursorPosition: this.cursorPosition,
@@ -442,21 +452,58 @@ export class SessionTracker {
       samplesCollected: currentExpectedChar
         ? this.keyProfiler.getSamples(currentExpectedChar)
         : 0,
-      errorIndices: Array.from(this.errorIndices),
-      typedChars: Object.fromEntries(this.typedChars),
       // Word-based tracking
       words: this.words,
       activeWordIndex: this.activeWordIndex,
       currentWordInput: this.currentWordInput,
-      wordInputHistory: [...this.wordInputHistory],
+      // No-copy views — consumers only read/slice these arrays.
+      wordInputHistory: this.wordInputHistory,
       wordCorrectness: Object.fromEntries(this.wordCorrectness),
-      burstHistory: [...this.burstHistory],
+      burstHistory: this.burstHistory,
+      consistency: derived.consistency,
+      slowestDigraphs: derived.slowestDigraphs,
+    } as SessionSnapshot;
+
+    // typedChars/errorIndices are not consumed by any UI today; materialize
+    // them lazily so per-keystroke snapshots skip the O(n) copy.
+    Object.defineProperty(snapshot, 'typedChars', {
+      enumerable: true,
+      configurable: true,
+      get: () => Object.fromEntries(this.typedChars),
+    });
+    Object.defineProperty(snapshot, 'errorIndices', {
+      enumerable: true,
+      configurable: true,
+      get: () => Array.from(this.errorIndices),
+    });
+
+    return snapshot;
+  }
+
+  /**
+   * O(n) statistics (consistency, slowest digraphs) are cached behind a short
+   * TTL so they aren't recomputed from scratch on every keystroke.
+   */
+  private getDerivedStats(): {
+    consistency: number;
+    slowestDigraphs: { char: string; latency: number }[];
+  } {
+    const now = performance.now();
+    const cached = this.derivedStatsCache;
+    if (cached && now - cached.at < DERIVED_STATS_TTL_MS) {
+      return cached;
+    }
+
+    const derived = {
+      at: now,
       consistency: calculateKogasa(this.allLatencies),
       slowestDigraphs: this.keyProfiler.getSlowestDigraphs(3).map(s => ({
         char: s.char,
-        latency: Math.round(s.avgLatencyMs)
+        latency: Math.round(s.avgLatencyMs),
       })),
     };
+    this.derivedStatsCache = derived;
+    return derived;
   }
 
   /**
@@ -511,6 +558,7 @@ export class SessionTracker {
     this.wordStartTime = 0;
     this.burstHistory = [];
     this.allLatencies = [];
+    this.derivedStatsCache = null;
     this.keyProfiler.resetDigraphState();
 
     // Reset cumulative practice trackers ONLY if not in practice-segment loop
@@ -625,6 +673,7 @@ export class SessionTracker {
 
   private async finish(): Promise<void> {
     this._state = 'finished';
+    this.derivedStatsCache = null; // final snapshot must be exact
     const endTime = performance.now();
     const durationMs = endTime - this.startTime;
 

@@ -132,3 +132,46 @@ Fetches the currently active rotating book of the week for user training (offlin
 
 ### GET /api/proxy/image
 Proxies external images to avoid CORS issues or for caching purposes.
+
+---
+
+## 7. Multiplayer Races
+
+P2P WebRTC races (2–4 players). HTTP is used only for room discovery,
+quick-match and WebRTC signaling — gameplay flows over peer data channels.
+All routes are unauthenticated (guest-friendly) and rate limited per IP/peer.
+
+### `POST /api/race/room`
+Creates a race lobby.
+- **Payload**: `{ peerId, name, wpm?, capacity?, isPublic? }`
+- **Response**: `201 { code, hostPeerId }` — `code` is a 5-char join code.
+
+### `POST /api/race/room/[code]/join`
+Joins a lobby by code.
+- **Payload**: `{ peerId, name, wpm? }`
+- **Response**: `{ ok: true, code, hostPeerId, capacity, roster }`
+- **Errors**: `404` room not found/expired, `409` full or already started.
+
+### `POST /api/race/room/[code]/signal`
+Relays a WebRTC signaling message (offer/answer/ICE) or lifecycle event
+(`join`, `leave`, `started`, `closed`).
+- **Payload**: `{ from, to | null, type, payload }` (payload ≤ 16 KB)
+- **Response**: `201 { ok: true, id }`
+
+### `GET /api/race/room/[code]/signal?peer=<id>&after=<id>`
+Polls the caller's signaling mailbox and current room state.
+- **Response**: `{ status, hostPeerId, capacity, roster, signals[] }`
+- `signals` contains only messages addressed to the caller or broadcast;
+  `after` is a monotonic cursor (the `id` of the last seen signal).
+- Unknown/expired rooms return `200 { status: "closed", ... }`.
+
+### `POST /api/race/room/[code]/leave`
+Leaves the room. When the host leaves, the room is closed for everyone.
+- **Payload**: `{ peerId }`
+- **Response**: `{ ok: true }`
+
+### `POST /api/race/match`
+Quick match: joins the oldest open public room within ±1 skill bucket
+(20 WPM bands) or creates a new room.
+- **Payload**: `{ peerId, name, wpm?, capacity? }`
+- **Response**: `{ role: "host" | "guest", code, hostPeerId, roster? }`

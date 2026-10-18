@@ -136,3 +136,35 @@ model ReadingProgress {
 }
 
 
+
+// ── Multiplayer races (P2P WebRTC; Postgres used for signaling + matchmaking) ──
+
+model RaceRoom {
+  code        String   @id
+  hostPeerId  String
+  status      String   @default("open") // open | started | closed
+  capacity    Int      @default(4)
+  skillBucket Int      @default(0)
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime
+  signals     RaceSignal[]
+
+  @@index([status, isPublic, skillBucket])
+  @@index([expiresAt])
+}
+
+model RaceSignal {
+  id        Int      @id @default(autoincrement())
+  roomCode  String
+  fromPeer  String
+  toPeer    String?  // null = room broadcast
+  type      String   // offer | answer | ice | join | leave | started | closed
+  payload   Json
+  createdAt DateTime @default(now())
+  room      RaceRoom @relation(fields: [roomCode], references: [code], onDelete: Cascade)
+
+  @@index([roomCode, toPeer, id])
+  @@index([roomCode, id])
+}

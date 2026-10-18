@@ -1,12 +1,25 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import TypingArea from '@/components/typing/TypingArea';
 import { useUIStore } from '@/store/uiStore';
 import { useTypingStore } from '@/store/typingStore';
-import { Flag, Trophy, RotateCcw, ArrowRight, Timer, Gauge } from 'lucide-react';
+import { Trophy, RotateCcw, ArrowRight, Timer, Gauge, Copy, Check, LogOut, Play } from 'lucide-react';
 import type { Session } from '@/db/schema';
 import { getProfile } from '@/db/profile';
+import Confetti from '@/components/ui/Confetti';
+import { AnimatedCounter } from '@/components/profile/AnimatedCounter';
+import { useRaceRoom } from '@/lib/multiplayer/useRaceRoom';
+import { RACE_MAX_PLAYERS, ROOM_CODE_REGEX, type RacePlayerState } from '@/lib/multiplayer/protocol';
+
+const LANE_COLORS = ['#22d3ee', '#f59e0b', '#ef4444'];
+
+function colorForPlace(place: number | null): string {
+  if (place === 1) return 'var(--color-success, #34d399)';
+  if (place === 2) return 'var(--text-secondary, #94a3b8)';
+  if (place === 3) return 'var(--color-accent-light, #eec224)';
+  return 'var(--text-muted, #6b6d70)';
+}
 
 interface DifficultyConfig {
   label: string;
@@ -163,19 +176,23 @@ export default function RacePage() {
 
   const totalChars = raceText.length;
 
-  // FIX: recompute bot speeds every new race (was: useState lazy init, only ran once ever).
-  const bot1Wpm = useMemo(() => {
+  // Bot speeds: start from the range midpoint (SSR-safe) and randomize after
+  // mount / per race. Using Math.random() during render caused a hydration
+  // mismatch because the server and client produced different values.
+  const [botWpms, setBotWpms] = useState<[number, number, number]>(() => {
+    const [min, max] = DIFFICULTIES[1].botWpmRange;
+    const mid = (min + max) / 2;
+    return [mid, mid * 1.15, mid * 1.3];
+  });
+  useEffect(() => {
     const [min, max] = difficulty.botWpmRange;
-    return min + Math.random() * (max - min) * 0.4;
+    setBotWpms([
+      min + Math.random() * (max - min) * 0.4,
+      min + Math.random() * (max - min) * 0.6,
+      min + Math.random() * (max - min) * 0.8,
+    ]);
   }, [raceKey, difficulty]);
-  const bot2Wpm = useMemo(() => {
-    const [min, max] = difficulty.botWpmRange;
-    return min + Math.random() * (max - min) * 0.6;
-  }, [raceKey, difficulty]);
-  const bot3Wpm = useMemo(() => {
-    const [min, max] = difficulty.botWpmRange;
-    return min + Math.random() * (max - min) * 0.8;
-  }, [raceKey, difficulty]);
+  const [bot1Wpm, bot2Wpm, bot3Wpm] = botWpms;
 
   useEffect(() => {
     if (snapshot.state === 'typing' && !hasStarted) {
@@ -215,6 +232,203 @@ export default function RacePage() {
 
   const playerPosition = placements.findIndex(p => p.id === 'player') + 1;
 
+  // ── Multiplayer (P2P WebRTC) state ──
+  type RaceMode = 'solo' | 'multi';
+  const [mode, setMode] = useState<RaceMode>('solo');
+  const room = useRaceRoom();
+
+  const [playerName, setPlayerName] = useState('');
+  const [wpmInput, setWpmInput] = useState('40');
+  const [joinCode, setJoinCode] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [mpText, setMpText] = useState('');
+  const [mpRaceKey, setMpRaceKey] = useState(0);
+  const [mpCountdown, setMpCountdown] = useState<number | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastReportedRef = useRef(-1);
+  const finishReportedRef = useRef(false);
+
+  const isMulti = mode === 'multi';
+  const selfPeerId = room.session?.peerId ?? null;
+  const mpRacing = isMulti && room.state === 'racing' && mpText.length > 0;
+  const mpFinished = isMulti && room.state === 'finished' && !!room.results;
+
+  useEffect(() => {
+    try {
+      const n = localStorage.getItem('vanga-race-name');
+      const w = localStorage.getItem('vanga-race-wpm');
+      if (n) setPlayerName(n);
+      if (w) setWpmInput(w);
+    } catch {
+      /* private mode */
+    }
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  const savePrefs = useCallback((name: string, wpm: number) => {
+    try {
+      localStorage.setItem('vanga-race-name', name);
+      localStorage.setItem('vanga-race-wpm', String(wpm));
+    } catch {
+      /* private mode */
+    }
+  }, []);
+
+  // New race announced by the host: ship text + synced start time, reset local
+  // race flags, remount the typing surface.
+  useEffect(() => {
+    if (!room.race) return;
+    setMpText(room.race.text);
+    setMpRaceKey(k => k + 1);
+    setMpCountdown(Math.max(0, Math.ceil((room.race.startAtLocalMs - Date.now()) / 1000)));
+    setIsStarted(false);
+    setIsFinished(false);
+    setResult(null);
+    setPlayerWpm(0);
+    lastReportedRef.current = -1;
+    finishReportedRef.current = false;
+  }, [room.race]);
+
+  // Drive the countdown from the host-synchronized start epoch.
+  useEffect(() => {
+    if (!isMulti || !room.race) return;
+    const startAt = room.race.startAtLocalMs;
+    let iv: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
+      const remain = startAt - Date.now();
+      if (remain <= 0) {
+        setMpCountdown(0);
+        if (iv) clearInterval(iv);
+        iv = null;
+      } else {
+        setMpCountdown(Math.ceil(remain / 1000));
+      }
+    };
+    iv = setInterval(tick, 150);
+    tick();
+    return () => {
+      if (iv) clearInterval(iv);
+    };
+  }, [isMulti, room.race]);
+
+  // GO: focus the text surface, then hide the overlay.
+  useEffect(() => {
+    if (mpCountdown !== 0 || !mpRacing) return;
+    const el = containerRef.current?.querySelector('.text-display') as HTMLElement;
+    el?.click();
+    const t = setTimeout(() => setMpCountdown(null), 550);
+    return () => clearTimeout(t);
+  }, [mpCountdown, mpRacing]);
+
+  // Report progress to the race session (internally throttled to 5 Hz).
+  const reportProgress = room.reportProgress;
+  useEffect(() => {
+    if (!mpRacing) return;
+    const pos = snapshot.cursorPosition;
+    if (pos === lastReportedRef.current) return;
+    lastReportedRef.current = pos;
+    reportProgress(pos, snapshot.wpm, snapshot.accuracy, snapshot.isComplete);
+  }, [mpRacing, snapshot.cursorPosition, snapshot.wpm, snapshot.accuracy, snapshot.isComplete, reportProgress]);
+
+  useEffect(() => {
+    if (!mpRacing || !snapshot.isComplete || finishReportedRef.current) return;
+    finishReportedRef.current = true;
+    reportProgress(snapshot.cursorPosition, snapshot.wpm, snapshot.accuracy, true);
+  }, [mpRacing, snapshot.isComplete, snapshot.cursorPosition, snapshot.wpm, snapshot.accuracy, reportProgress]);
+
+  const handleModeSwitch = (next: RaceMode) => {
+    if (next === mode) return;
+    if (next === 'solo' && room.session) return;
+    if (next === 'multi' && raceLocked) return;
+    setMode(next);
+    if (next === 'solo') {
+      setIsStarted(false);
+      setIsFinished(false);
+      setResult(null);
+      setPlayerWpm(0);
+      setShowSetup(true);
+      setCountdown(null);
+      pickRandomText();
+      setRaceKey(k => k + 1);
+    }
+  };
+
+  const mpName = playerName.trim();
+  const mpWpm = Math.min(250, Math.max(5, Math.round(Number(wpmInput) || 40)));
+
+  const enterMulti = async (factory: () => Promise<unknown>) => {
+    if (!mpName) return;
+    savePrefs(mpName, mpWpm);
+    await factory();
+  };
+  const handleCreateRoom = () => enterMulti(() => room.create({ name: mpName, wpm: mpWpm, isPublic: false, capacity: RACE_MAX_PLAYERS }));
+  const handleQuickMatch = () => enterMulti(() => room.quickMatch({ name: mpName, wpm: mpWpm }));
+  const handleJoinRoom = () => {
+    if (!ROOM_CODE_REGEX.test(joinCode)) return;
+    return enterMulti(() => room.join(joinCode, { name: mpName, wpm: mpWpm }));
+  };
+  const handleStartMultiplayer = () => {
+    const texts = getTextsForDifficulty(difficulty);
+    const text = texts[Math.floor(Math.random() * texts.length)];
+    room.start(text);
+  };
+  const handleLeaveMultiplayer = async () => {
+    await room.close();
+    room.reset();
+    setMpText('');
+    setMpCountdown(null);
+  };
+  const handleCopyCode = async () => {
+    if (!room.code) return;
+    try {
+      await navigator.clipboard.writeText(room.code);
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  // Lane data: board while racing, roster (as board-shaped placeholders) in the lobby.
+  const mpRosterFallback: RacePlayerState[] = room.roster.map(r => ({
+    peerId: r.peerId,
+    name: r.name,
+    charIndex: 0,
+    wpm: typeof r.wpm === 'number' ? r.wpm : 0,
+    accuracy: 1,
+    finished: false,
+    place: null,
+    connected: true,
+    isBot: false,
+  }));
+  const mpEntries: RacePlayerState[] = room.board.length > 0 ? room.board : mpRosterFallback;
+  const mpSelf = mpEntries.find(p => p.peerId === selfPeerId) ?? null;
+  const mpOthers = mpEntries.filter(p => p.peerId !== selfPeerId);
+  const mpTotal = mpText.length;
+  const mpSelfPct = mpSelf && mpTotal > 0 ? Math.min((mpSelf.charIndex / mpTotal) * 100, 100) : 0;
+  const mpRanked = [...mpEntries].sort((a, b) => {
+    if (a.finished !== b.finished) return a.finished ? -1 : 1;
+    if (a.finished && b.finished) return (a.place ?? 99) - (b.place ?? 99);
+    return b.charIndex - a.charIndex;
+  });
+  const mpSelfRank = Math.max(1, mpRanked.findIndex(p => p.peerId === selfPeerId) + 1);
+  const mpSelfEntry = room.results?.players.find(p => p.peerId === selfPeerId) ?? null;
+  const mpPlace = mpSelfEntry?.place ?? null;
+  const mpColor = colorForPlace(mpPlace);
+
+  const mpOverlay: 'closed' | 'setup' | 'results' | 'countdown' | 'lobby' | null = (() => {
+    if (!isMulti) return null;
+    if (room.closedReason) return 'closed';
+    if (!room.session) return 'setup';
+    if (room.state === 'finished' && room.results) return 'results';
+    if (mpCountdown !== null) return 'countdown';
+    if (!room.race) return 'lobby';
+    return null;
+  })();
+
   const startNewRace = () => {
     setIsStarted(false);
     setIsFinished(false);
@@ -248,17 +462,12 @@ export default function RacePage() {
   // FIX: prevent changing difficulty mid-race, which used to silently swap
   // the underlying race parameters while typing was in progress.
   const raceLocked = hasStarted && !isFinished;
+  // Host owns the text; lock difficulty while a multiplayer session is live.
+  const diffLocked = raceLocked || (isMulti && !!room.session && room.state !== 'finished');
   const diffUp = () => !raceLocked && setDifficultyIndex(i => Math.min(i + 1, DIFFICULTIES.length - 1));
   const diffDown = () => !raceLocked && setDifficultyIndex(i => Math.max(i - 1, 0));
 
-  const positionColor =
-    playerPosition === 1
-      ? 'var(--color-success, #34d399)'
-      : playerPosition === 2
-        ? 'var(--text-secondary, #94a3b8)'
-        : playerPosition === 3
-          ? 'var(--color-accent-light, #eec224)'
-          : 'var(--text-muted, #6b6d70)';
+  const positionColor = colorForPlace(playerPosition);
 
   function ordinal(n: number) {
     const s = ['th', 'st', 'nd', 'rd'];
@@ -283,6 +492,24 @@ export default function RacePage() {
           </div>
 
           <div className="topbar-side">
+            <div className="mode-switch" role="group" aria-label="Race mode">
+              <button
+                type="button"
+                className={`mode-opt ${!isMulti ? 'active' : ''}`}
+                onClick={() => handleModeSwitch('solo')}
+                disabled={!!room.session}
+              >
+                Solo
+              </button>
+              <button
+                type="button"
+                className={`mode-opt ${isMulti ? 'active' : ''}`}
+                onClick={() => handleModeSwitch('multi')}
+                disabled={raceLocked && !isMulti}
+              >
+                Multiplayer
+              </button>
+            </div>
             <div className="level-chip" title="Player level">
               <Trophy size={13} />
               <span>Lv. {profileLevel}</span>
@@ -299,9 +526,9 @@ export default function RacePage() {
                 key={d.label}
                 className={`diff-chip ${active ? 'active' : ''}`}
                 onClick={() => {
-                  if (!raceLocked) setDifficultyIndex(idx);
+                  if (!diffLocked) setDifficultyIndex(idx);
                 }}
-                disabled={raceLocked}
+                disabled={diffLocked}
                 aria-pressed={active}
                 style={{ '--diff-color': d.color } as React.CSSProperties}
               >
@@ -313,12 +540,15 @@ export default function RacePage() {
         </div>
 
         {/* ── Live standing ── */}
-        {hasStarted && !isFinished && (
-          <div className="standing" style={{ '--pos-color': positionColor } as React.CSSProperties}>
-            <span className="standing-pos">{ordinal(playerPosition)}</span>
+        {((!isMulti && hasStarted && !isFinished) || (mpRacing && !mpFinished)) && (
+          <div
+            className="standing"
+            style={{ '--pos-color': isMulti ? 'var(--color-primary-light, #818cf8)' : positionColor } as React.CSSProperties}
+          >
+            <span className="standing-pos">{ordinal(isMulti ? mpSelfRank : playerPosition)}</span>
             <span className="standing-label">place</span>
             <span className="standing-sep" />
-            <span className="standing-wpm">{playerWpm.toFixed(0)} wpm</span>
+            <span className="standing-wpm">{(isMulti ? snapshot.wpm : playerWpm).toFixed(0)} wpm</span>
           </div>
         )}
 
@@ -330,47 +560,85 @@ export default function RacePage() {
             <span>100%</span>
           </div>
 
-          {/* Player lane */}
-          <div className="lane lane-player">
-            <div className="lane-side">
-              <span className="lane-name">You</span>
-              <span className="lane-wpm">{hasStarted ? playerWpm.toFixed(0) : '—'}</span>
-            </div>
-            <div className="lane-track">
-              <span className="lane-fill" style={{ width: `${playerPct}%` }} />
-            </div>
-          </div>
-
-          {/* Bot lanes */}
-          {bots.map((bot, i) => {
-            const botPos = [
-              { pct: playerPct, id: 'player' },
-              { pct: bot1Pct, id: 'b1' },
-              { pct: bot2Pct, id: 'b2' },
-              { pct: bot3Pct, id: 'b3' },
-            ]
-              .sort((a, b) => b.pct - a.pct)
-              .findIndex(item => item.id === (i === 0 ? 'b1' : i === 1 ? 'b2' : 'b3')) + 1;
-
-            return (
-              <div className="lane" key={i}>
+          {!isMulti ? (
+            <>
+              {/* Player lane */}
+              <div className="lane lane-player">
                 <div className="lane-side">
-                  <span className="lane-name">{bot.name}</span>
-                  <span className="lane-wpm">
-                    {bot.wpm.toFixed(0)} <em>wpm</em> · {ordinal(botPos)}
-                  </span>
+                  <span className="lane-name">You</span>
+                  <span className="lane-wpm">{hasStarted ? playerWpm.toFixed(0) : '—'}</span>
                 </div>
                 <div className="lane-track">
-                  <span className="lane-fill" style={{ width: `${bot.pct}%`, background: bot.color }} />
+                  <span className="lane-fill" style={{ width: `${playerPct}%` }} />
                 </div>
               </div>
-            );
-          })}
+              {/* Bot lanes */}
+              {bots.map((bot, i) => {
+                const botPos = [
+                  { pct: playerPct, id: 'player' },
+                  { pct: bot1Pct, id: 'b1' },
+                  { pct: bot2Pct, id: 'b2' },
+                  { pct: bot3Pct, id: 'b3' },
+                ]
+                  .sort((a, b) => b.pct - a.pct)
+                  .findIndex(item => item.id === (i === 0 ? 'b1' : i === 1 ? 'b2' : 'b3')) + 1;
+
+                return (
+                  <div className="lane" key={i}>
+                    <div className="lane-side">
+                      <span className="lane-name">{bot.name}</span>
+                      <span className="lane-wpm">
+                        {bot.wpm.toFixed(0)} <em>wpm</em> · {ordinal(botPos)}
+                      </span>
+                    </div>
+                    <div className="lane-track">
+                      <span className="lane-fill" style={{ width: `${bot.pct}%`, '--lane-color': bot.color } as React.CSSProperties} />
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              {/* Self lane */}
+              <div className="lane lane-player">
+                <div className="lane-side">
+                  <span className="lane-name">You</span>
+                  <span className="lane-wpm">{mpRacing ? snapshot.wpm.toFixed(0) : '—'}</span>
+                </div>
+                <div className="lane-track">
+                  <span className="lane-fill" style={{ width: `${mpSelfPct}%` }} />
+                </div>
+              </div>
+              {/* Other players (board is host-authoritative) */}
+              {mpOthers.map((p, i) => {
+                const pct = mpTotal > 0 ? Math.min((p.charIndex / mpTotal) * 100, 100) : 0;
+                const posLabel = !p.connected ? 'DNF' : p.finished && p.place ? ordinal(p.place) : null;
+                return (
+                  <div className={`lane ${p.connected ? '' : 'lane-dim'}`} key={p.peerId}>
+                    <div className="lane-side">
+                      <span className="lane-name">{p.name}</span>
+                      <span className="lane-wpm">
+                        {p.wpm.toFixed(0)} <em>wpm</em>
+                        {posLabel ? <> · {posLabel}</> : null}
+                      </span>
+                    </div>
+                    <div className="lane-track">
+                      <span
+                        className="lane-fill"
+                        style={{ width: `${pct}%`, '--lane-color': LANE_COLORS[i % LANE_COLORS.length] } as React.CSSProperties}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* ── Race area: TypingArea + overlays ── */}
         <div className="race-typing-area" ref={containerRef}>
-          {showSetup && !hasStarted && countdown === null && (
+          {!isMulti && showSetup && !hasStarted && countdown === null && (
             <div className="race-overlay">
               <div className="setup-card">
                 <span className="setup-eyebrow">{difficulty.label} Grand Prix</span>
@@ -395,7 +663,7 @@ export default function RacePage() {
             </div>
           )}
 
-          {countdown !== null && (
+          {!isMulti && countdown !== null && (
             <div className="race-overlay" aria-live="assertive">
               <div className="countdown-card">
                 <span className="countdown-cap">Get set</span>
@@ -414,8 +682,9 @@ export default function RacePage() {
             </div>
           )}
 
-          {isFinished && (
+          {!isMulti && isFinished && (
             <div className="race-overlay">
+              {playerPosition === 1 && <Confetti />}
               <div className="result-card">
                 <span className="result-eyebrow" style={{ color: positionColor }}>
                   {playerPosition === 1 ? 'Race won' : 'Race finished'}
@@ -428,13 +697,16 @@ export default function RacePage() {
                 <div className="result-row">
                   <div className="result-metric">
                     <Gauge size={15} />
-                    <span className="metric-value">{result?.wpm.toFixed(0)}</span>
+                    <span className="metric-value">
+                      <AnimatedCounter value={result?.wpm ?? 0} duration={700} />
+                    </span>
                     <span className="metric-label">wpm</span>
                   </div>
                   <div className="result-metric">
                     <Timer size={15} />
                     <span className="metric-value">
-                      {result?.accuracy ? `${(result.accuracy * 100).toFixed(0)}%` : '100%'}
+                      <AnimatedCounter value={(result?.accuracy ?? 1) * 100} duration={700} />
+                      %
                     </span>
                     <span className="metric-label">accuracy</span>
                   </div>
@@ -467,13 +739,256 @@ export default function RacePage() {
             </div>
           )}
 
-          <TypingArea
-            key={raceKey}
-            language={language}
-            mode="lesson"
-            customText={raceText}
-            onComplete={handleComplete}
-          />
+          {/* ── Multiplayer overlays ── */}
+          {isMulti && mpOverlay === 'setup' && (
+            <div className="race-overlay">
+              <div className="setup-card mp-setup-card">
+                <span className="setup-eyebrow">Multiplayer</span>
+                <h2>Race players live</h2>
+                <p>
+                  Direct P2P races for up to {RACE_MAX_PLAYERS} players. Create a room and share the
+                  code, or jump into a quick match.
+                </p>
+
+                <div className="mp-form">
+                  <label className="mp-field">
+                    <span>Display name</span>
+                    <input
+                      className="mp-input"
+                      value={playerName}
+                      onChange={e => setPlayerName(e.target.value)}
+                      placeholder="Your name"
+                      maxLength={24}
+                    />
+                  </label>
+                  <label className="mp-field">
+                    <span>Your approx. WPM</span>
+                    <input
+                      className="mp-input"
+                      type="number"
+                      min={5}
+                      max={250}
+                      value={wpmInput}
+                      onChange={e => setWpmInput(e.target.value)}
+                      placeholder="40"
+                    />
+                  </label>
+                </div>
+
+                <div className="mp-actions">
+                  <button className="btn btn-primary" onClick={handleCreateRoom} disabled={!mpName || room.busy}>
+                    Create room
+                    <ArrowRight size={15} />
+                  </button>
+                  <button className="btn btn-secondary" onClick={handleQuickMatch} disabled={!mpName || room.busy}>
+                    Quick match
+                  </button>
+                </div>
+
+                <div className="mp-join-row">
+                  <input
+                    className="mp-input mp-code-input"
+                    value={joinCode}
+                    onChange={e => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5))}
+                    placeholder="CODE"
+                    maxLength={5}
+                    aria-label="Room code"
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleJoinRoom}
+                    disabled={!mpName || room.busy || !ROOM_CODE_REGEX.test(joinCode)}
+                  >
+                    Join
+                  </button>
+                </div>
+
+                {room.error && <p className="mp-error">{room.error}</p>}
+                <p className="mp-hint">WebRTC connects players directly — no gameplay server involved.</p>
+              </div>
+            </div>
+          )}
+
+          {isMulti && mpOverlay === 'lobby' && (
+            <div className="race-overlay">
+              <div className="setup-card mp-setup-card">
+                <span className="setup-eyebrow">{room.role === 'host' ? 'Hosting room' : 'In room'}</span>
+                <div className="mp-code-row">
+                  <span className="mp-code">{room.code ?? '·····'}</span>
+                  <button className="mp-copy" onClick={handleCopyCode} title="Copy room code" aria-label="Copy room code">
+                    {copied ? <Check size={15} /> : <Copy size={15} />}
+                  </button>
+                </div>
+                <p>
+                  {room.role === 'host'
+                    ? room.allConnected
+                      ? 'All players connected — ready when you are.'
+                      : 'Share the code. Waiting for players to connect…'
+                    : room.allConnected
+                      ? 'Connected to host.'
+                      : 'Connecting to host…'}
+                </p>
+
+                <div className="roster-list">
+                  {room.roster.map(r => (
+                    <div key={r.peerId} className="roster-row">
+                      <span className="roster-dot" style={{ background: r.isHost ? '#eec224' : '#22d3ee' }} />
+                      <span className="roster-name">
+                        {r.name}
+                        {r.peerId === selfPeerId ? ' (you)' : ''}
+                      </span>
+                      {r.isHost && <Trophy size={12} className="roster-crown" />}
+                      <span className="roster-wpm">
+                        {typeof r.wpm === 'number' && r.wpm > 0 ? `~${Math.round(r.wpm)} wpm` : ''}
+                      </span>
+                    </div>
+                  ))}
+                  {room.roster.length === 0 && (
+                    <div className="roster-row">
+                      <span className="roster-dot" style={{ background: '#eec224' }} />
+                      <span className="roster-name">{mpName || 'You'}</span>
+                      <span className="roster-wpm">{room.role === 'host' ? 'host' : ''}</span>
+                    </div>
+                  )}
+                </div>
+
+                {room.role === 'host' ? (
+                  <button
+                    className="btn btn-primary race-start-btn"
+                    onClick={handleStartMultiplayer}
+                    disabled={!room.allConnected || room.busy}
+                  >
+                    Start race
+                    <Play size={15} />
+                  </button>
+                ) : (
+                  <span className="mp-wait">Waiting for host to start…</span>
+                )}
+
+                {room.error && <p className="mp-error">{room.error}</p>}
+
+                <button className="btn btn-secondary" onClick={handleLeaveMultiplayer}>
+                  <LogOut size={14} />
+                  Leave
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isMulti && mpOverlay === 'countdown' && (
+            <div className="race-overlay" aria-live="assertive">
+              <div className="countdown-card">
+                <span className="countdown-cap">Get set</span>
+                <span className={`countdown-num ${mpCountdown === 0 ? 'go' : ''}`} key={mpCountdown}>
+                  {mpCountdown === 0 ? 'GO' : mpCountdown}
+                </span>
+                <div className="countdown-lights">
+                  {[0, 1, 2].map(i => (
+                    <span
+                      key={i}
+                      className={`light ${(mpCountdown ?? 0) > 0 && 3 - Math.min(mpCountdown ?? 3, 3) > i ? 'lit' : ''} ${mpCountdown === 0 ? 'go' : ''}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isMulti && mpOverlay === 'results' && room.results && (
+            <div className="race-overlay">
+              {mpPlace === 1 && <Confetti />}
+              <div className="result-card">
+                <span className="result-eyebrow" style={{ color: mpColor }}>
+                  {mpPlace === 1 ? 'Race won' : 'Race finished'}
+                </span>
+                <span className="result-position" style={{ color: mpColor }}>
+                  {mpPlace ? ordinal(mpPlace) : '—'}
+                  <small>place</small>
+                </span>
+
+                <div className="result-row">
+                  <div className="result-metric">
+                    <Gauge size={15} />
+                    <span className="metric-value">
+                      <AnimatedCounter value={mpSelfEntry?.wpm ?? snapshot.wpm} duration={700} />
+                    </span>
+                    <span className="metric-label">wpm</span>
+                  </div>
+                  <div className="result-metric">
+                    <Timer size={15} />
+                    <span className="metric-value">
+                      <AnimatedCounter value={(mpSelfEntry?.accuracy ?? snapshot.accuracy) * 100} duration={700} />
+                      %
+                    </span>
+                    <span className="metric-label">accuracy</span>
+                  </div>
+                  <div className="result-metric">
+                    <Trophy size={15} />
+                    <span className="metric-value accent">+{mpPlace === 1 ? '100' : '40'}</span>
+                    <span className="metric-label">xp</span>
+                  </div>
+                </div>
+
+                <div className="mp-standings">
+                  {[...room.results.players]
+                    .sort((a, b) => (a.place ?? 99) - (b.place ?? 99))
+                    .map(p => (
+                      <div key={p.peerId} className={`standing-row ${p.peerId === selfPeerId ? 'self' : ''}`}>
+                        <span className="standing-place">{p.place ? ordinal(p.place) : '—'}</span>
+                        <span className="standing-name">
+                          {p.name}
+                          {p.peerId === selfPeerId ? ' (you)' : ''}
+                        </span>
+                        <span className="standing-stat">{p.wpm.toFixed(0)} wpm</span>
+                        <span className="standing-stat">{(p.accuracy * 100).toFixed(0)}%</span>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="result-actions">
+                  {room.role === 'host' ? (
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleStartMultiplayer}
+                      disabled={!room.allConnected}
+                    >
+                      <RotateCcw size={15} />
+                      Race again
+                    </button>
+                  ) : (
+                    <span className="mp-wait">Waiting for host to start a rematch…</span>
+                  )}
+                  <button className="btn btn-secondary" onClick={handleLeaveMultiplayer}>
+                    <LogOut size={15} />
+                    Leave room
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isMulti && mpOverlay === 'closed' && (
+            <div className="race-overlay">
+              <div className="setup-card">
+                <span className="setup-eyebrow">Room closed</span>
+                <h2>{room.closedReason === 'host-left' ? 'The host left the race' : 'This room is no longer available'}</h2>
+                <p>Multiplayer rooms end when the host leaves.</p>
+                <button className="btn btn-primary" onClick={handleLeaveMultiplayer}>
+                  Back to multiplayer
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(!isMulti || mpText.length > 0) && (
+            <TypingArea
+              key={isMulti ? `mp-${mpRaceKey}` : raceKey}
+              language={language}
+              mode="lesson"
+              customText={isMulti ? mpText : raceText}
+              onComplete={handleComplete}
+            />
+          )}
         </div>
       </div>
 
@@ -705,18 +1220,39 @@ export default function RacePage() {
 
         .lane-track {
           position: relative;
-          height: 8px;
+          height: 10px;
           border-radius: 9999px;
           background: var(--bg-overlay, rgba(255, 255, 255, 0.06));
-          overflow: hidden;
+          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+
+        .lane-player .lane-track {
+          background: rgba(129, 140, 248, 0.10);
+          box-shadow:
+            inset 0 1px 2px rgba(0, 0, 0, 0.35),
+            0 0 0 1px rgba(129, 140, 248, 0.14);
         }
 
         .lane-fill {
           position: absolute;
           inset: 0 auto 0 0;
           border-radius: 9999px;
-          background: var(--color-primary, #6366f1);
-          transition: width 0.14s linear;
+          background: var(--lane-color, var(--color-primary, #6366f1));
+          transition: width 0.16s linear;
+        }
+
+        /* Glowing head marker at the front of each racer */
+        .lane-fill::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          right: 0;
+          width: 9px;
+          height: 9px;
+          transform: translate(50%, -50%);
+          border-radius: 50%;
+          background: var(--lane-color, var(--color-primary, #6366f1));
+          box-shadow: 0 0 10px var(--lane-color, var(--color-primary, #6366f1));
         }
 
         /* ── Race area / overlays ── */
@@ -726,6 +1262,12 @@ export default function RacePage() {
         }
 
         .race-typing-area :global(.inline-metrics) {
+          display: none !important;
+        }
+
+        /* Race mode has its own result card; hide TypingArea's lesson-style
+           results overlay so both don't stack on race completion. */
+        .race-typing-area :global(.results-overlay) {
           display: none !important;
         }
 
@@ -995,6 +1537,248 @@ export default function RacePage() {
           border-color: var(--text-muted, #6b6d70);
         }
 
+        /* ── Mode switch ── */
+        .topbar-side {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .mode-switch {
+          display: inline-flex;
+          padding: 3px;
+          border-radius: 9999px;
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+        }
+
+        .mode-opt {
+          border: none;
+          background: transparent;
+          color: var(--text-secondary, #9a9c9f);
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 700;
+          padding: 5px 14px;
+          border-radius: 9999px;
+          cursor: pointer;
+          transition: background 0.18s ease, color 0.18s ease;
+        }
+
+        .mode-opt.active {
+          background: var(--bg-overlay, rgba(255, 255, 255, 0.08));
+          color: var(--text-primary, #fff);
+        }
+
+        .mode-opt:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+
+        /* ── Multiplayer lobby ── */
+        .mp-setup-card {
+          max-width: 420px;
+        }
+
+        .mp-form {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          width: 100%;
+        }
+
+        .mp-field {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          text-align: left;
+        }
+
+        .mp-field span {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted, #6b6d70);
+        }
+
+        .mp-input {
+          width: 100%;
+          padding: 9px 12px;
+          border-radius: var(--radius-md, 0.5rem);
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+          color: var(--text-primary, #fff);
+          font-family: inherit;
+          font-size: 0.9rem;
+          outline: none;
+          transition: border-color 0.15s ease;
+        }
+
+        .mp-input:focus {
+          border-color: var(--color-primary-light, #818cf8);
+        }
+
+        .mp-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-top: 2px;
+        }
+
+        .mp-join-row {
+          display: flex;
+          gap: 8px;
+          width: 100%;
+        }
+
+        .mp-code-input {
+          flex: 1;
+          text-align: center;
+          font-family: var(--font-mono, monospace);
+          font-weight: 700;
+          letter-spacing: 0.3em;
+          text-transform: uppercase;
+        }
+
+        .mp-hint {
+          font-size: 11px !important;
+          color: var(--text-muted, #6b6d70) !important;
+        }
+
+        .mp-error {
+          font-size: 12px !important;
+          color: var(--color-error, #f87171) !important;
+        }
+
+        .mp-code-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .mp-code {
+          font-family: var(--font-mono, monospace);
+          font-size: 1.9rem;
+          font-weight: 900;
+          letter-spacing: 0.32em;
+          color: var(--text-primary, #fff);
+          padding-left: 0.32em;
+        }
+
+        .mp-copy {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 34px;
+          height: 34px;
+          border-radius: 9999px;
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+          color: var(--text-secondary, #9a9c9f);
+          cursor: pointer;
+          transition: color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .mp-copy:hover {
+          color: var(--text-primary, #fff);
+          border-color: var(--text-muted, #6b6d70);
+        }
+
+        .roster-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          width: 100%;
+        }
+
+        .roster-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 7px 12px;
+          border-radius: var(--radius-md, 0.5rem);
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+          font-size: 13px;
+        }
+
+        .roster-row .roster-name {
+          font-weight: 700;
+          color: var(--text-primary, #fff);
+        }
+
+        .roster-crown {
+          color: var(--color-accent-light, #eec224);
+        }
+
+        .roster-row .roster-wpm {
+          margin-left: auto;
+          font-family: var(--font-mono, monospace);
+          font-size: 11px;
+          color: var(--text-muted, #6b6d70);
+        }
+
+        .mp-wait {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px !important;
+          color: var(--text-muted, #6b6d70) !important;
+        }
+
+        .mp-standings {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          width: 100%;
+          max-height: 180px;
+          overflow-y: auto;
+        }
+
+        .standing-row {
+          display: grid;
+          grid-template-columns: 34px 1fr auto auto;
+          align-items: center;
+          gap: 10px;
+          padding: 7px 12px;
+          border-radius: var(--radius-md, 0.5rem);
+          background: var(--bg-surface, #131313);
+          border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+          font-size: 12px;
+        }
+
+        .standing-row.self {
+          border-color: rgba(129, 140, 248, 0.45);
+          background: rgba(129, 140, 248, 0.08);
+        }
+
+        .standing-place {
+          font-family: var(--font-mono, monospace);
+          font-weight: 800;
+          color: var(--text-secondary, #9a9c9f);
+        }
+
+        .standing-name {
+          font-weight: 700;
+          color: var(--text-primary, #fff);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-align: left;
+        }
+
+        .standing-stat {
+          font-family: var(--font-mono, monospace);
+          color: var(--text-secondary, #9a9c9f);
+          font-variant-numeric: tabular-nums;
+        }
+
+        .lane-dim {
+          opacity: 0.45;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 640px) {
           .lane {
@@ -1009,6 +1793,22 @@ export default function RacePage() {
           .result-row {
             gap: 1rem;
             padding: 10px 14px;
+          }
+
+          .mp-form {
+            grid-template-columns: 1fr;
+          }
+
+          .mp-code {
+            font-size: 1.5rem;
+          }
+
+          .standing-row {
+            grid-template-columns: 30px 1fr auto;
+          }
+
+          .standing-row .standing-stat:last-child {
+            display: none;
           }
         }
       `}</style>

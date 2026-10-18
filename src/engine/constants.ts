@@ -33,6 +33,7 @@ export const CHARS_PER_WORD = 5; // Standard: 1 word = 5 characters
 
 // ── Rendering Throttle ──
 export const WPM_UPDATE_INTERVAL_MS = 250; // Update WPM display every 250ms
+export const DERIVED_STATS_TTL_MS = 300; // Recompute O(n) derived stats (consistency, slowest digraphs) at most this often
 
 // ── Caret ──
 export const CARET_SPEED_SLOW = 150;
